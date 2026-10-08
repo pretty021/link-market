@@ -19,7 +19,7 @@ export function StatusBadge({ status, mine, clientChecking }: { status: PostStat
       if (clientChecking) return <Badge tone="amber">Client Checking</Badge>;
       return <Badge tone="purple">{mine ? 'Your hold' : 'In progress'}</Badge>;
     case 'COMPLETED':
-      return <Badge tone="slate">Completed</Badge>;
+      return <Badge tone="red">Completed</Badge>;
   }
 }
 
@@ -71,32 +71,51 @@ export function Countdown({
   );
 }
 
-const tints = [
-  'bg-brand-mint/10 text-brand-mint',
-  'bg-brand-purple/10 text-brand-purple',
-  'bg-state-warn/10 text-state-warn',
-  'bg-bg-elev text-ink-mid',
-];
+const LINKEDIN_BLUE = '#0A66C2';
 
-/** Uploaded image, or a flat cover showing the listing number (e.g. "#1042") or initials. */
+/** The white "in" letters on their own (no tile). */
+function InGlyph({ className }: { className?: string }) {
+  return (
+    // <svg viewBox="9 8.4 33 31" className={className} aria-hidden="true">
+    //   <circle cx="13.2" cy="12.6" r="3.7" fill="#fff" />
+    //   <rect x="9.9" y="18.6" width="6.6" height="20.4" rx="0.6" fill="#fff" />
+    //   <path
+    //     fill="#fff"
+    //     d="M20.9 18.6H27.2V21.4C28.1 19.7 30.3 18.1 33.6 18.1C40.3 18.1 41.5 22.5 41.5 28.2V39H34.9V29.4C34.9 27.1 34.8 24.2 31.7 24.2C28.5 24.2 28 26.7 28 29.3V39H20.9Z"
+    //   />
+    // </svg>
+    <>...</>
+  );
+}
+
+/** LinkedIn-style "in" logo tile, drawn as a vector so it stays sharp at any size. */
+export function LinkedInMark({ className }: { className?: string }) {
+  return (
+    <span
+      role="img"
+      aria-label="LinkedIn account"
+      className={cn('inline-flex items-center justify-center rounded-[19%]', className)}
+      style={{ backgroundColor: LINKEDIN_BLUE }}
+    >
+      <InGlyph className="h-[62%] w-auto" />
+    </span>
+  );
+}
+
+/** Uploaded image, or the account cover: LinkedIn blue filling the whole area with the "in" centred. */
 export function PostImage({ image, title, className }: { image: ImageInfo | null; title: string; className?: string }) {
   if (image?.url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={image.url} alt={title} className={cn('size-full object-cover', className)} />;
   }
-  const tint = tints[[...title].reduce((a, c) => a + c.charCodeAt(0), 0) % tints.length];
-  const number = /#\s?(\d{2,})/.exec(title)?.[1];
-  const mark = number
-    ? `#${number}`
-    : title
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w) => w[0]!.toUpperCase())
-        .join('');
   return (
-    <div className={cn('flex size-full items-center justify-center [container-type:inline-size]', tint, className)} aria-hidden="true">
-      <span className="font-mono text-[clamp(0.7rem,16cqw,2rem)] font-semibold tracking-tight">{mark}</span>
+    <div
+      role="img"
+      aria-label="LinkedIn account"
+      className={cn('flex size-full items-center justify-center', className)}
+      style={{ backgroundColor: LINKEDIN_BLUE }}
+    >
+      <InGlyph className="h-[46%] w-auto" />
     </div>
   );
 }

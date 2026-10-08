@@ -220,7 +220,7 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
             <Button size="sm" variant="ghost" onClick={loadMore} loading={loadingMore}>Load earlier messages</Button>
           </div>
         )}
-        {data.messages.length === 0 && <Empty title="No messages yet" hint="Say hello to start the conversation." />}
+        {data.messages.length === 0 && <Empty title="No messages yet" hint="Say hello." />}
         {data.messages.map((m) => {
           if (m.type === 'SYSTEM') {
             return (
@@ -508,7 +508,7 @@ function Composer({
             }
           }}
         >
-          <Input type="url" required placeholder="Send new checking info (https://...)" value={text} onChange={(e) => setText(e.target.value)} />
+          <Input type="url" required placeholder="New checking link (https://…)" value={text} onChange={(e) => setText(e.target.value)} />
           <Button type="submit" loading={busy}><Send /> Resubmit</Button>
         </form>
       );
@@ -517,8 +517,8 @@ function Composer({
       post?.status !== 'PROGRESSING' || done
         ? 'This deal is closed.'
         : deal.latestCheck?.status === 'PENDING'
-          ? 'Waiting for the client to review your checking info.'
-          : 'You can chat once the client marks your checking info as Checked.';
+          ? 'Waiting for client review.'
+          : 'Chat opens after Checked.';
     return <div className="border-t border-line/70 px-4 py-3 text-center text-xs text-ink-lo">{why}</div>;
   }
 

@@ -61,7 +61,7 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <PageTitle title="Admin dashboard" subtitle="Live overview of people and posts." />
+      <PageTitle title="Admin dashboard" subtitle="Live overview." />
       <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard icon={<UserCheck className="size-5" />} label="Clients online / total" value={stats?.clientsOnline ?? 0} total={stats?.clientsTotal ?? 0} tone="mint" />
         <StatCard icon={<Users className="size-5" />} label="Customers online / total" value={stats?.customersOnline ?? 0} total={stats?.customersTotal ?? 0} tone="purple" />
@@ -70,11 +70,11 @@ export default function AdminDashboard() {
       </div>
 
       <Card>
-        <CardHeader title="Post requests" subtitle="Set the image, connects and price, save, then accept to publish to every customer." icon={<Inbox className="size-5" />} />
+        <CardHeader title="Post requests" subtitle="Set price, save, accept." icon={<Inbox className="size-5" />} />
         {requests === null ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : requests.length === 0 ? (
-          <Empty icon={<CheckCircle2 />} title="No pending requests" hint="New requests from clients appear here live." />
+          <Empty icon={<CheckCircle2 />} title="No pending requests" hint="New requests appear live." />
         ) : (
           <ul className="divide-y divide-line/50">
             {requests.map((p) => (

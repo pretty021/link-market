@@ -87,7 +87,7 @@ export default function ProfilePage() {
           </form>
         </Card>
         <Card>
-          <CardHeader title="Change password" subtitle="Your current password is required." icon={<KeyRound className="size-5" />} />
+          <CardHeader title="Change password" subtitle="Needs current password." icon={<KeyRound className="size-5" />} />
           <form onSubmit={changePassword} className="space-y-4 p-5">
             <Field label="Current password" htmlFor="pw-cur">
               <Input id="pw-cur" type="password" required autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} />

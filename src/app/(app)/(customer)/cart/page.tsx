@@ -119,13 +119,13 @@ export default function CartPage() {
     <>
       <PageTitle
         title="Your cart"
-        subtitle={data ? `${data.count} of ${data.cartLimit} slot${data.cartLimit === 1 ? '' : 's'} used. Confirm a post to hold it for 5 minutes.` : ' '}
+        subtitle={data ? `${data.count} of ${data.cartLimit} slot${data.cartLimit === 1 ? '' : 's'} used` : ' '}
       />
       {!data ? (
         <div className="flex justify-center py-20"><Spinner /></div>
       ) : data.items.length === 0 ? (
         <Card>
-          <Empty icon={<ShoppingCart />} title="Your cart is empty" hint="Add posts from the marketplace, then confirm the one you want." />
+          <Empty icon={<ShoppingCart />} title="Your cart is empty" hint="Add accounts to start." />
           <div className="flex justify-center pb-10"><Button asChild><Link href="/feed">Browse listings</Link></Button></div>
         </Card>
       ) : (
@@ -239,7 +239,7 @@ function ConfirmDialog({
   return (
     <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
       {item && (
-        <DialogContent title="You're holding this post" description={item.post.title}>
+        <DialogContent title="On hold for you" description={item.post.title}>
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl border border-line bg-bg-base/60 p-3">
               <p className="text-[11px] text-ink-lo">Client</p>
@@ -255,10 +255,10 @@ function ConfirmDialog({
             </div>
           </div>
           <form onSubmit={submit} className="mt-5 space-y-3">
-            <Field label="Checking info (URL)" htmlFor="check-url" error={error ?? undefined}>
+            <Field label="Checking link" htmlFor="check-url" error={error ?? undefined}>
               <Input id="check-url" type="url" required placeholder="https://..." value={url} onChange={(e) => setUrl(e.target.value)} autoFocus />
             </Field>
-            <p className="text-xs text-ink-lo">The client reviews this link and marks it Checked or Not checked before the countdown ends.</p>
+            <p className="text-xs text-ink-lo">The client checks it before time runs out.</p>
             <div className="grid grid-cols-2 gap-3">
               <Button type="button" variant="outline" className="w-full" onClick={() => onCancelHold(item)} loading={cancelling} disabled={busy}>
                 <X /> Cancel

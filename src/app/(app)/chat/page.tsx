@@ -52,7 +52,7 @@ function ChatPage() {
           <ChatThread key={selected} conversationId={selected} onBack={() => router.push('/chat')} />
         ) : (
           <div className="flex flex-1 items-center justify-center">
-            <Empty icon={<MessageCircle />} title="Select a conversation" hint="Deal chats open automatically after a customer submits checking info." />
+            <Empty icon={<MessageCircle />} title="Pick a chat" />
           </div>
         )}
       </section>

@@ -29,7 +29,7 @@ export default {
           purpleSoft: v('purple-soft'),
         },
         'on-mint': v('on-mint'),
-        // Active/primary buttons: #108a00 in both themes.
+        // Active/primary buttons: LinkedIn blue #0A66C2 in both themes.
         primary: { DEFAULT: v('primary'), hover: v('primary-hover') },
         'on-primary': v('on-primary'),
         state: {

@@ -67,7 +67,7 @@ function GlobalListeners() {
   const { me } = useMe();
   const alerted = useRef(new Set<string>());
 
-  // Client: a Customer confirmed one of my posts. Keyed by progressingAt so later
+  // Client: a Customer confirmed one of My Accounts. Keyed by progressingAt so later
   // post:updated events for the same hold (e.g. a price edit) don't alert again.
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => {
     if (me.kind !== 'user' || me.role !== 'CLIENT' || post.clientId !== me.id) return;
@@ -100,7 +100,7 @@ function ConnectionDot() {
   return (
     <span
       title={connected ? 'Live' : 'Reconnecting...'}
-      className={cn('hidden size-2 rounded-full sm:inline-block', connected ? 'bg-state-ok shadow-[0_0_8px_#36d399]' : 'bg-state-warn')}
+      className={cn('hidden size-2 rounded-full sm:inline-block', connected ? 'bg-state-ok' : 'bg-state-warn')}
     />
   );
 }

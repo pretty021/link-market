@@ -72,7 +72,7 @@ export default function AllChats() {
           <ChatThread key={selected} conversationId={selected} adminView onBack={() => setSelected(null)} />
         ) : (
           <div className="flex flex-1 items-center justify-center">
-            <Empty icon={<History />} title="Pick a conversation" hint="You can read every chat. Deal chats are read-only, and reading never changes anyone's unread counts." />
+            <Empty icon={<History />} title="Pick a chat" hint="Deal chats are read-only." />
           </div>
         )}
       </section>

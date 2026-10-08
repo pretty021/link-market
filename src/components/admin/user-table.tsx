@@ -64,12 +64,12 @@ export function UserTable({ role }: { role: Role }) {
     <>
       <PageTitle
         title={isClient ? 'Clients' : 'Customers'}
-        subtitle={isClient ? 'Sellers who request posts. Clients use s_counts.' : 'Buyers who browse and confirm posts. Customers use b_counts and a cart limit.'}
+        subtitle={isClient ? 'Sellers · s_counts' : 'Buyers · b_counts · cart limit'}
         action={<Button onClick={() => setEditing('new')}><Plus /> New {isClient ? 'client' : 'customer'}</Button>}
       />
       <div className="relative mb-4 max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-lo" />
-        <Input className="pl-9" placeholder="Search name or email" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input className="pl-9" placeholder="Name or email…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <Card className="overflow-x-auto">
         {users === null ? (

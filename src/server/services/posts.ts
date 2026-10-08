@@ -370,7 +370,11 @@ export async function listFeed(customer: UserActor) {
   await expireDue();
   const [posts, cart] = await Promise.all([
     prisma.post.findMany({
-      where: { approval: true, status: { in: ['PUBLISHED', 'PROGRESSING'] } },
+      // Live listings for everyone, plus the accounts this Customer completed (they stay the holder).
+      where: {
+        approval: true,
+        OR: [{ status: { in: ['PUBLISHED', 'PROGRESSING'] } }, { status: 'COMPLETED', holderId: customer.id }],
+      },
       include: postInclude,
       orderBy: { createdAt: 'desc' },
     }),

@@ -4,62 +4,63 @@
 
 /* Theme tokens as RGB channels (see tailwind.config.ts). Light is the default; the inline script
    in app/layout.tsx sets data-theme before first paint from the saved choice.
-   Roles: mint = brand green (actions, "live"), purple = info blue (holds / in progress). */
+   Roles: mint = brand blue (LinkedIn #0A66C2: actions, "live"), purple = violet (holds / in progress),
+   ok = green (online, success). The "mint"/"purple" names are kept so call sites don't change. */
 :root,
 [data-theme='light'] {
   color-scheme: light;
-  --bg-deep: 248 249 247;
+  --bg-deep: 244 246 249;
   --bg-base: 255 255 255;
   --bg-card: 255 255 255;
-  --bg-elev: 242 244 241;
-  --line: 228 231 226;
-  --ink-hi: 17 24 19;
-  --ink-mid: 74 84 76;
-  --ink-lo: 117 126 119;
-  --mint: 16 138 0;
-  --mint-soft: 13 115 0;
-  --mint-deep: 16 138 0;
-  --purple: 29 78 216;
-  --purple-soft: 29 78 216;
-  --purple-deep: 29 78 216;
+  --bg-elev: 238 242 247;
+  --line: 223 228 235;
+  --ink-hi: 15 23 42;
+  --ink-mid: 71 85 105;
+  --ink-lo: 113 128 150;
+  --mint: 10 102 194;
+  --mint-soft: 0 65 130;
+  --mint-deep: 10 102 194;
+  --purple: 109 40 217;
+  --purple-soft: 109 40 217;
+  --purple-deep: 109 40 217;
   --on-mint: 255 255 255;
-  --primary: 16 138 0;
-  --primary-hover: 13 115 0;
+  --primary: 10 102 194;
+  --primary-hover: 0 65 130;
   --on-primary: 255 255 255;
-  --ok: 16 138 0;
+  --ok: 5 150 105;
   --warn: 180 83 9;
   --err: 220 38 38;
-  --shadow: 16 24 18;
+  --shadow: 15 23 42;
   --shadow-alpha: 0.06;
-  --scrollbar: 206 211 204;
+  --scrollbar: 203 210 220;
 }
 
 [data-theme='dark'] {
   color-scheme: dark;
-  --bg-deep: 13 15 14;
-  --bg-base: 20 23 21;
-  --bg-card: 22 25 23;
-  --bg-elev: 31 35 32;
-  --line: 44 49 45;
-  --ink-hi: 238 241 238;
-  --ink-mid: 176 184 178;
-  --ink-lo: 124 133 126;
-  --mint: 98 212 74;
-  --mint-soft: 128 224 108;
-  --mint-deep: 98 212 74;
-  --purple: 110 160 255;
-  --purple-soft: 140 180 255;
-  --purple-deep: 110 160 255;
-  --on-mint: 10 20 8;
-  --primary: 16 138 0;
-  --primary-hover: 22 160 0;
+  --bg-deep: 17 20 24;
+  --bg-base: 24 28 33;
+  --bg-card: 27 31 35;
+  --bg-elev: 36 41 47;
+  --line: 50 56 63;
+  --ink-hi: 236 240 245;
+  --ink-mid: 174 184 196;
+  --ink-lo: 122 134 148;
+  --mint: 112 181 249;
+  --mint-soft: 150 200 251;
+  --mint-deep: 112 181 249;
+  --purple: 167 139 250;
+  --purple-soft: 190 170 252;
+  --purple-deep: 167 139 250;
+  --on-mint: 10 20 35;
+  --primary: 10 102 194;
+  --primary-hover: 55 143 233;
   --on-primary: 255 255 255;
-  --ok: 98 212 74;
+  --ok: 74 222 128;
   --warn: 245 179 66;
   --err: 248 113 113;
   --shadow: 0 0 0;
   --shadow-alpha: 0.4;
-  --scrollbar: 58 64 59;
+  --scrollbar: 60 67 75;
 }
 
 @layer base {

@@ -10,7 +10,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: 'bg-primary text-on-primary hover:bg-primary-hover',
-        // Secondary action: green outline (kept the "purple" name so call sites don't change).
+        // Secondary action: brand-blue outline (kept the "purple" name so call sites don't change).
         purple: 'border border-brand-mint/50 bg-transparent text-brand-mint hover:bg-brand-mint/10',
         outline: 'border border-line bg-bg-card text-ink-hi hover:bg-bg-elev',
         ghost: 'text-ink-mid hover:bg-bg-elev hover:text-ink-hi',

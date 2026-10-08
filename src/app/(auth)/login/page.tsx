@@ -14,7 +14,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(
-    params.get('blocked') ? 'Your session ended because your account was blocked or signed out.' : null,
+    params.get('blocked') ? 'Session ended. Please log in again.' : null,
   );
   const [busy, setBusy] = useState(false);
 
@@ -35,7 +35,7 @@ function LoginForm() {
     <form onSubmit={submit} className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Welcome back</h1>
-        <p className="mt-1 text-sm text-ink-mid">Log in as an admin, seller or buyer.</p>
+        <p className="mt-1 text-sm text-ink-mid">Admin, seller or buyer.</p>
       </div>
       <Field label="Email" htmlFor="email">
         <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

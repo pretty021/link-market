@@ -2,8 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
+import { CalendarCheck, FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
+import { ListToolbar, STAFF_STATUS_OPTIONS, ToolbarPanelTitle, useListControls } from '@/components/list-toolbar';
 import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
@@ -31,6 +32,8 @@ export default function ClientDashboard() {
   const [online, setOnline] = useState<OnlineCustomer[] | null>(null);
   const [chats, setChats] = useState<ChatRow[] | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
+  const list = useListControls('client-posts', STAFF_STATUS_OPTIONS, 'updated', ['all', 'title', 'buyer']);
+  const view = list.apply(posts);
 
   const loadPosts = useCallback(
     async () => setPosts([...(await api<{ posts: Post[] }>('/api/client/posts')).posts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))),
@@ -108,17 +111,23 @@ export default function ClientDashboard() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <Card>
-          <CardHeader title="My posts" subtitle="Requested posts go live once the admin accepts them." icon={<Link2 className="size-5" />} />
+          <CardHeader title="My Accounts" subtitle="Live after admin approval." icon={<Link2 className="size-5" />} />
           {posts === null ? (
             <div className="flex justify-center py-12"><Spinner /></div>
           ) : posts.length === 0 ? (
-            <Empty title="No posts yet" hint="Use Post Request to submit one or more listings." />
+            <Empty title="No posts yet" hint="Tap Post Request to add one." />
+          ) : view.shown!.length === 0 ? (
+            <Empty title="No posts match" hint="Try other filters." />
           ) : (
             <ul className="divide-y divide-line/50">
-              {posts.map((p) => (
+              {view.shown!.map((p) => (
                 <li
                   key={p.id}
-                  className={cn('flex gap-4 p-4 transition-colors duration-700', flash.has(p.id) && 'bg-brand-mint/10 ring-1 ring-inset ring-brand-mint/50')}
+                  className={cn(
+                    'flex gap-4 p-4 transition-colors duration-700',
+                    p.status === 'COMPLETED' && 'border-l-4 border-l-state-err/60 bg-state-err/[0.06] pl-3',
+                    flash.has(p.id) && 'bg-brand-mint/10 ring-1 ring-inset ring-brand-mint/50',
+                  )}
                 >
                   <div className="h-20 w-28 shrink-0 overflow-hidden rounded-xl">
                     <PostImage image={p.image} title={p.title} />
@@ -153,8 +162,17 @@ export default function ClientDashboard() {
         </Card>
 
         <div className="space-y-6">
+          {posts && <TodaySales posts={posts} />}
+
+          {posts && posts.length > 0 && (
+            <Card>
+              <CardHeader title={<ToolbarPanelTitle />} subtitle="Find accounts fast" />
+              <ListToolbar controls={list} counts={view.counts} shown={view.shown?.length ?? 0} total={view.total} layout="stack" className="p-5" />
+            </Card>
+          )}
+
           <Card>
-            <CardHeader title="Customers by chat" subtitle="Newest conversation first" icon={<MessageSquare className="size-5" />} />
+            <CardHeader title="Customers by chat" subtitle="Latest first" icon={<MessageSquare className="size-5" />} />
             {chats === null ? (
               <div className="flex justify-center py-8"><Spinner /></div>
             ) : chats.length === 0 ? (
@@ -196,11 +214,63 @@ export default function ClientDashboard() {
               </ul>
             )}
           </Card>
+
         </div>
       </div>
 
       <PostRequestDialog open={requestOpen} onClose={() => setRequestOpen(false)} onCreated={(created) => created.forEach(upsert)} />
     </>
+  );
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Today's completed sales for this Client (since local midnight), plus all-time totals. Live with the post list. */
+function TodaySales({ posts }: { posts: Post[] }) {
+  // Re-render at local midnight so "today" rolls over without a refresh.
+  const [dayStart, setDayStart] = useState(() => new Date().setHours(0, 0, 0, 0));
+  useEffect(() => {
+    const next = new Date(dayStart).setDate(new Date(dayStart).getDate() + 1);
+    const t = setTimeout(() => setDayStart(new Date().setHours(0, 0, 0, 0)), Math.max(1000, next - Date.now()));
+    return () => clearTimeout(t);
+  }, [dayStart]);
+
+  const completed = posts.filter((p) => p.status === 'COMPLETED' && p.completedAt);
+  const today = completed.filter((p) => new Date(p.completedAt!).getTime() >= dayStart);
+  const todayTotal = round2(today.reduce((s, p) => s + (p.price ?? 0), 0));
+  const allTotal = round2(completed.reduce((s, p) => s + (p.price ?? 0), 0));
+  const dateLabel = new Date(dayStart).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+  return (
+    <Card>
+      <CardHeader title="Today" subtitle={`Sales · ${dateLabel}`} icon={<CalendarCheck className="size-5" />} />
+      <div className="grid grid-cols-2 divide-x divide-line">
+        <div className="p-5">
+          <p className="text-xs font-medium text-ink-lo">Total price</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-brand-mint">{formatPrice(todayTotal)}</p>
+        </div>
+        <div className="p-5">
+          <p className="text-xs font-medium text-ink-lo">Completed</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">{today.length}</p>
+        </div>
+      </div>
+      {today.length > 0 && (
+        <ul className="max-h-40 space-y-1.5 overflow-y-auto border-t border-line px-5 py-3 text-xs">
+          {today.map((p) => (
+            <li key={p.id} className="flex items-center justify-between gap-3">
+              <span className="truncate text-ink-mid">{p.title}</span>
+              <span className="shrink-0 font-semibold tabular-nums">{formatPrice(p.price)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex items-center justify-between border-t border-line px-5 py-3 text-xs text-ink-lo">
+        <span>All time</span>
+        <span className="tabular-nums">
+          {completed.length} completed · <span className="font-semibold text-ink-mid">{formatPrice(allTotal)}</span>
+        </span>
+      </div>
+    </Card>
   );
 }
 
@@ -237,13 +307,13 @@ function PostRequestDialog({ open, onClose, onCreated }: { open: boolean; onClos
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="Post Request" description="Each line becomes one post.">
+      <DialogContent title="Post Request" description="One line per account.">
         <form onSubmit={submit} className="space-y-3">
           {lines.map((l, i) => (
             <div key={l.id} className="flex gap-2">
               <Input
                 autoFocus={i === lines.length - 1}
-                placeholder={`Line ${i + 1}, e.g. Account #1045 - 2 years old`}
+                placeholder={`e.g. Account #${1045 + i}`}
                 maxLength={300}
                 value={l.value}
                 onChange={(e) => setLines(lines.map((x) => (x.id === l.id ? { ...x, value: e.target.value } : x)))}

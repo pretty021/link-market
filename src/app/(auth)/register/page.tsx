@@ -32,8 +32,8 @@ export default function RegisterPage() {
   return (
     <form onSubmit={submit} className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Create a buyer account</h1>
-        <p className="mt-1 text-sm text-ink-mid">Start browsing right away. No approval needed.</p>
+        <h1 className="text-2xl font-bold">Create account</h1>
+        <p className="mt-1 text-sm text-ink-mid">Free. No approval needed.</p>
       </div>
       <ImageUpload value={image} onChange={setImage} label="Add a photo" round />
       <Field label="Name" htmlFor="name">

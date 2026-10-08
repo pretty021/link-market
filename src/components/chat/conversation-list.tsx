@@ -27,7 +27,7 @@ export function ConversationList({
       <div className="border-b border-line/70 p-3">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-lo" />
-          <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Search name or email" className="pl-9" />
+          <Input value={q} onChange={(e) => onQ(e.target.value)} placeholder="Name or email…" className="pl-9" />
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">

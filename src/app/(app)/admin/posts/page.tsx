@@ -2,18 +2,18 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { PageTitle } from '@/components/app-shell';
+import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
 import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { Badge, Card, Empty, Spinner } from '@/components/ui/primitives';
 import { api } from '@/lib/client/api';
-import type { Post, PostStatus } from '@/lib/client/types';
-import { cn, formatPrice } from '@/lib/utils';
-
-const filters: Array<PostStatus | 'ALL'> = ['ALL', 'REQUESTED', 'PUBLISHED', 'PROGRESSING', 'COMPLETED'];
+import type { Post } from '@/lib/client/types';
+import { formatPrice } from '@/lib/utils';
 
 export default function AdminPosts() {
   const [posts, setPosts] = useState<Post[] | null>(null);
-  const [filter, setFilter] = useState<PostStatus | 'ALL'>('ALL');
+  const list = useListControls('admin-posts', STAFF_STATUS_OPTIONS, 'newest');
+  const view = list.apply(posts);
 
   const load = useCallback(async () => setPosts((await api<{ posts: Post[] }>('/api/admin/posts')).posts), []);
   useEffect(() => void load(), [load]);
@@ -29,30 +29,23 @@ export default function AdminPosts() {
     setPosts((prev) => prev?.map((p) => (p.id === postId ? { ...p, viewers: count } : p)) ?? prev),
   );
 
-  const shown = posts?.filter((p) => filter === 'ALL' || p.status === filter) ?? null;
+  const shown = view.shown;
 
   return (
     <>
-      <PageTitle title="Posts overview" subtitle="Every post with its status, holder and live countdown." />
-      <div className="mb-4 flex flex-wrap gap-2">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={cn(
-              'rounded-full border px-3 py-1 text-xs font-semibold transition',
-              filter === f ? 'border-primary bg-primary text-on-primary' : 'border-line text-ink-mid hover:text-ink-hi',
-            )}
-          >
-            {f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()} {posts && `(${f === 'ALL' ? posts.length : posts.filter((p) => p.status === f).length})`}
-          </button>
-        ))}
-      </div>
+      <PageTitle title="Posts overview" subtitle="Status, buyer and timer." />
+      <ListToolbar
+        controls={list}
+        counts={view.counts}
+        shown={shown?.length ?? 0}
+        total={view.total}
+        className="mb-4"
+      />
       <Card className="overflow-x-auto">
         {shown === null ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : shown.length === 0 ? (
-          <Empty title="No posts" />
+          <Empty title={view.total === 0 ? 'No posts' : 'No posts match'} hint={view.total === 0 ? undefined : 'Try a different search or status.'} />
         ) : (
           <table className="w-full min-w-[820px] text-sm">
             <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
