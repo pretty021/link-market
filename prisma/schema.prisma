@@ -1,0 +1,334 @@
+// Database model for the Admin / Client / Customer post marketplace
+// Stack: PostgreSQL + Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum Role {
+  CLIENT
+  CUSTOMER
+}
+
+enum PostStatus {
+  REQUESTED    // Client submitted it, waiting for Admin
+  PUBLISHED    // Admin accepted it, visible to all Customers (many Customers may have it in their cart)
+  PROGRESSING  // exactly ONE Customer confirmed it; 5-minute countdown running, locked for everyone else
+  COMPLETED    // Client clicked "Checked" before the countdown ended
+}
+// Countdown runs out while PROGRESSING -> back to PUBLISHED (every Customer can confirm again).
+
+// Visible ONLY to the post's progressing Customer (Post.holderId), its Client (Post.clientId) and the Admin.
+// Enforce in the API: every CheckSubmission read checks that the caller is one of those three.
+enum CheckStatus {
+  PENDING      // waiting for the Client
+  CHECKED      // Client accepted it -> countdown stops, post COMPLETED, chat continues
+  NOT_CHECKED  // Client rejected it -> Customer must resubmit (countdown keeps running)
+  EXPIRED      // the 5-minute countdown ran out before "Checked"
+}
+
+enum ConversationType {
+  DEAL            // Client <-> Customer, tied to a post
+  ADMIN_CLIENT
+  ADMIN_CUSTOMER
+}
+
+enum MessageType {
+  TEXT
+  CHECK_REQUEST   // carries a CheckSubmission, shows Checked / Not checked buttons to the Client
+  SYSTEM          // automatic notices, e.g. "Checked - post completed", "Time expired"
+}
+
+enum NotificationType {
+  CHECK_SUBMITTED   // to the Client: a Customer sent checking info (links to the deal chat)
+  CHECK_CHECKED     // to the Customer: the Client clicked Checked
+  CHECK_NOT_CHECKED // to the Customer: the Client clicked Not checked
+  POST_EXPIRED      // to the former holder and the Client: countdown ran out
+  POST_ACCEPTED     // to the Client: Admin accepted the post
+  NEW_MESSAGE       // to a participant who is not looking at the chat
+}
+
+// ───────────────────────── Admin ─────────────────────────
+
+// Admins are kept in their own table, separate from Clients and Customers.
+// No public sign-up: seed the first admin with a script.
+model Admin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String                 // bcrypt hash, never the plain password
+  name         String?
+  lastSeenAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions       Session[]
+  createdUsers   User[]                    @relation("UserCreatedBy")
+  postApprovals  PostApproval[]
+  participations ConversationParticipant[]
+  messages       Message[]
+  notifications  Notification[]
+}
+
+// ───────────────────────── Clients & Customers ─────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  role         Role                    // CLIENT or CUSTOMER
+  image        Json?                   // uploaded image info: { url, key, mimeType, size, width, height }
+  name         String
+  email        String    @unique
+  passwordHash String                  // hashed password
+  b_counts     Int       @default(0)   // CUSTOMER accounts only; set by Admin
+  s_counts     Int       @default(0)   // CLIENT accounts only (shown instead of b_counts); set by Admin
+  cartLimit    Int       @default(1)   // Customers only (ignored for Clients); set by Admin.
+                                       // The ONLY limit on a Customer's cart: COUNT(CartItem) < cartLimit
+  isBlocked    Boolean   @default(false)
+  lastSeenAt   DateTime?               // heartbeat; "online now" = recent lastSeenAt / open socket
+  deletedAt    DateTime?               // soft delete, so chat and deal history survive
+
+  createdById  String?                 // Admin who created the account (null = Customer self-registered)
+  createdBy    Admin?    @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sessions         Session[]
+  clientPosts      Post[]                    @relation("PostClient")
+  heldPosts        Post[]                    @relation("PostHolder")
+  cartItems        CartItem[]
+  postViews        PostView[]
+  checkSubmissions CheckSubmission[]
+  participations   ConversationParticipant[]
+  messages         Message[]
+  notifications    Notification[]
+
+  @@index([role, isBlocked])
+  @@index([role, lastSeenAt])
+}
+
+// Login sessions for both tables. Exactly one of userId / adminId is set.
+// Revoke all of a user's sessions when Admin blocks them.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId   String?
+  admin     Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([adminId])
+}
+
+// ───────────────────────── Posts ─────────────────────────
+
+model Post {
+  id       String     @id @default(cuid())
+  clientId String
+  client   User       @relation("PostClient", fields: [clientId], references: [id])
+  title    String                         // the one-line input from the request modal
+  status   PostStatus @default(REQUESTED) // REQUESTED -> PUBLISHED -> PROGRESSING -> COMPLETED
+  image    Json?                          // uploaded image info: { url, key, mimeType, size, width, height }; set by Admin
+  connects Int        @default(0)         // set by Admin
+  price    Float?                         // e.g. 35.01
+
+  approval       Boolean       @default(false) // true when an Admin accepts the post
+  approvalRecord PostApproval?                 // who accepted it and when
+
+  // holderId: NULL before PROGRESSING; when PROGRESSING = the ONE progressing Customer.
+  // (Cart holders are in CartItem.) It is a single column, so a post can never have two
+  // progressing Customers. Change status ONLY with conditional updates (compare-and-set),
+  // never read-then-write. See section 3.2 of the build prompt.
+  holderId              String?
+  holder                User?     @relation("PostHolder", fields: [holderId], references: [id])
+  progressingAt         DateTime? // when the post became PROGRESSING
+  progressingExpiresAt  DateTime? // progressingAt + 5 minutes. Still PROGRESSING at this time -> back to PUBLISHED
+  completedAt           DateTime? // when the Client clicked Checked (countdown stops)
+
+  viewCount Int      @default(0) // total unique viewers; live "current viewing" is kept in socket rooms
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  views            PostView[]
+  cartItems        CartItem[]
+  checkSubmissions CheckSubmission[]
+  conversations    Conversation[]
+  notifications    Notification[]
+
+  @@index([status])
+  @@index([approval, status])
+  @@index([clientId, status])
+  @@index([holderId, status])
+  @@index([status, progressingExpiresAt])
+}
+
+// Admin's acceptance of a post (one per post). Created in the same transaction that
+// sets Post.approval = true and Post.status = PUBLISHED.
+model PostApproval {
+  id         String   @id @default(cuid())
+  postId     String   @unique
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  adminId    String?
+  admin      Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  note       String?                 // optional message from Admin to the Client
+  approvedAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([approvedAt])
+}
+
+// Customer's cart. Several Customers can cart the same post; only one can make it PROGRESSING.
+// Only Customers have cart items. Limit = User.cartLimit (default 1).
+model CartItem {
+  customerId String
+  postId     String
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  addedAt    DateTime @default(now())
+
+  @@id([customerId, postId])
+  @@index([postId])
+}
+
+model PostView {
+  postId        String
+  customerId    String
+  post          Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  customer      User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  firstViewedAt DateTime @default(now())
+  lastViewedAt  DateTime @default(now())
+
+  @@id([postId, customerId])
+}
+
+// Checking info the Customer submits from the confirm dialog (one row per attempt)
+model CheckSubmission {
+  id         String      @id @default(cuid())
+  postId     String
+  post       Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   User        @relation(fields: [customerId], references: [id])
+  url        String
+  status     CheckStatus @default(PENDING)
+  reviewedAt DateTime?
+  createdAt  DateTime    @default(now())
+
+  message Message?
+
+  @@index([postId, status])
+}
+
+// ───────────────────────── Chat ─────────────────────────
+
+model Conversation {
+  id            String           @id @default(cuid())
+  type          ConversationType
+  postId        String?                     // set for DEAL conversations
+  post          Post?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+  // DEAL: "<postId>:<customerId>"; ADMIN_*: "<adminId>:<userId>". Unique, so two requests at
+  // the same moment can't create the same chat twice (use upsert on this key).
+  pairKey       String           @unique
+  lastMessageAt DateTime?                   // for "sort by chat time"
+  createdAt     DateTime         @default(now())
+
+  participants  ConversationParticipant[]
+  messages      Message[]
+  notifications Notification[]
+
+  @@index([type, lastMessageAt])
+  @@index([postId])
+}
+
+// A participant is either a User (Client/Customer) or an Admin. Exactly one of userId / adminId is set.
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId        String?
+  admin          Admin?       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?    // unread count = messages after this
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@unique([conversationId, adminId])
+  @@index([userId])
+  @@index([adminId])
+}
+
+// Sender is either a User or an Admin. Exactly one of senderUserId / senderAdminId is set
+// (SYSTEM messages may have neither).
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUserId   String?
+  senderUser     User?        @relation(fields: [senderUserId], references: [id])
+  senderAdminId  String?
+  senderAdmin    Admin?       @relation(fields: [senderAdminId], references: [id])
+  type           MessageType  @default(TEXT)
+  body           String?
+
+  checkSubmissionId String?          @unique
+  checkSubmission   CheckSubmission? @relation(fields: [checkSubmissionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ───────────────────────── Notifications ─────────────────────────
+
+// In-app notifications (bell icon + toast). Exactly one of userId / adminId is set.
+// Delivered live over Socket.IO and stored so they survive a refresh or offline user.
+model Notification {
+  id             String           @id @default(cuid())
+  type           NotificationType
+  userId         String?
+  user           User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId        String?
+  admin          Admin?           @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  postId         String?
+  post           Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  conversationId String?          // where clicking the notification goes (e.g. the deal chat)
+  conversation   Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  title          String
+  body           String?
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([adminId, readAt, createdAt])
+}
+
+// ───────────────────────── Raw SQL to add after the first migration ─────────────────────────
+// Prisma can't express these rules, so add them to the migration file:
+//
+// ALTER TABLE "Session" ADD CONSTRAINT session_owner_check
+//   CHECK (("userId" IS NULL) <> ("adminId" IS NULL));
+// ALTER TABLE "ConversationParticipant" ADD CONSTRAINT participant_owner_check
+//   CHECK (("userId" IS NULL) <> ("adminId" IS NULL));
+// ALTER TABLE "Notification" ADD CONSTRAINT notification_owner_check
+//   CHECK (("userId" IS NULL) <> ("adminId" IS NULL));
+// ALTER TABLE "Message" ADD CONSTRAINT message_sender_check
+//   CHECK (NOT ("senderUserId" IS NOT NULL AND "senderAdminId" IS NOT NULL));
+//
+// Safety net for the "one post = one PROGRESSING Customer" rule: the database itself rejects
+// any row where the status and holder disagree, even if application code has a bug.
+// ALTER TABLE "Post" ADD CONSTRAINT post_holder_check
+//   CHECK ((status IN ('PROGRESSING', 'COMPLETED')) = ("holderId" IS NOT NULL));
+// ALTER TABLE "Post" ADD CONSTRAINT post_progressing_check
+//   CHECK (status <> 'PROGRESSING' OR ("progressingAt" IS NOT NULL AND "progressingExpiresAt" IS NOT NULL));

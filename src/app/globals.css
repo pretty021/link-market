@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body {
+    @apply bg-bg-deep text-ink-hi antialiased;
+  }
+  body {
+    background-image: radial-gradient(1100px 520px at 0% -10%, rgba(138, 125, 255, 0.16), transparent 60%),
+      radial-gradient(900px 480px at 100% -5%, rgba(77, 227, 180, 0.12), transparent 55%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  ::selection {
+    @apply bg-brand-mint/30;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2a3768 transparent;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-line/80 bg-bg-card/80 shadow-soft backdrop-blur;
+  }
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-mint via-brand-mintSoft to-brand-purpleSoft bg-clip-text text-transparent;
+  }
+  .field {
+    @apply h-10 w-full rounded-xl border border-line bg-bg-base/80 px-3 text-sm text-ink-hi placeholder:text-ink-lo outline-none transition focus:border-brand-mint/70 focus:ring-2 focus:ring-brand-mint/20 disabled:opacity-50;
+  }
+}
