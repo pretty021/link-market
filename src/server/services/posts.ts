@@ -205,6 +205,73 @@ export async function confirmPost(customer: UserActor, postId: string) {
   };
 }
 
+// ───────────────────────── Cancel a hold ─────────────────────────
+
+/**
+ * The progressing Customer gives the post up before the countdown ends: it returns to PUBLISHED
+ * (approved, every Customer can confirm again), exactly as on expiry. Pending checking info is closed
+ * as EXPIRED (the schema has no cancelled state), the deal chat gets a system message, and the Client
+ * is notified. Conditional on status + holder, so it races safely with "Checked" and with expiry.
+ */
+export async function cancelHold(customer: UserActor, postId: string) {
+  const out = new Outbox();
+  const post = await prisma.$transaction(
+    async (tx) => {
+      const rows = await tx.$queryRaw<{ id: string; clientId: string; title: string }[]>`
+        UPDATE "Post"
+        SET status = 'PUBLISHED', "holderId" = NULL,
+            "progressingAt" = NULL, "progressingExpiresAt" = NULL, "updatedAt" = ${DB_NOW}
+        WHERE id = ${postId} AND status = 'PROGRESSING' AND "holderId" = ${customer.id}
+        RETURNING id, "clientId", title`;
+
+      if (rows.length === 0) {
+        const current = await tx.post.findUnique({ where: { id: postId }, include: postInclude });
+        if (!current || !current.approval) throw notFound('Post');
+        const data = { post: toPostDTO(current, { staff: false }), serverNow: await dbNow(tx) };
+        if (current.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This post is already completed.', data);
+        throw conflict('NOT_HOLDING', 'You are not holding this post.', data);
+      }
+
+      const row = rows[0];
+      const serverNow = await dbNow(tx);
+      await tx.checkSubmission.updateMany({
+        where: { postId: row.id, status: 'PENDING' },
+        data: { status: 'EXPIRED', reviewedAt: serverNow },
+      });
+
+      const conv = await tx.conversation.findUnique({ where: { pairKey: `${row.id}:${customer.id}` } });
+      if (conv) {
+        await addMessage(tx, out, {
+          conversationId: conv.id,
+          type: 'SYSTEM',
+          body: 'The customer cancelled the hold. This post is available again.',
+        });
+      }
+
+      await notify(tx, out, { userId: row.clientId }, {
+        type: 'POST_EXPIRED',
+        title: 'Hold cancelled',
+        body: `The customer released "${row.title}". It is available again.`,
+        postId: row.id,
+        conversationId: conv?.id ?? null,
+      });
+
+      const updated = await loadPost(tx, row.id);
+      pushPost(out, updated, serverNow, 'post:updated');
+      // Same event as expiry, so every screen (cart, feed, client dashboard, admin, deal chat) refreshes.
+      out.push(
+        [rooms.user(customer.id), rooms.user(row.clientId), rooms.admins, conv ? rooms.conversation(conv.id) : null],
+        'post:expired',
+        { post: toPostDTO(updated, { staff: false }), formerHolderId: customer.id, conversationId: conv?.id ?? null, reason: 'cancelled', serverNow },
+      );
+      return updated;
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
+  out.flush();
+  return { post: toPostDTO(post, { staff: false }) };
+}
+
 // ───────────────────────── Admin: accept / edit ─────────────────────────
 
 export async function acceptPost(admin: AdminActor, postId: string, note?: string) {
@@ -291,7 +358,7 @@ export async function listClientPosts(client: UserActor) {
   const posts = await prisma.post.findMany({
     where: { clientId: client.id },
     include: postInclude,
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
   });
   return { posts: posts.map((p) => toPostDTO(p, { staff: true })), serverNow: await dbNow() };
 }
@@ -341,7 +408,7 @@ export async function getPostForCustomer(customer: UserActor, postId: string) {
 
 // ───────────────────────── Cart ─────────────────────────
 
-async function cartSnapshot(customerId: string) {
+export async function cartSnapshot(customerId: string) {
   const [items, user] = await Promise.all([
     prisma.cartItem.findMany({ where: { customerId }, select: { postId: true } }),
     prisma.user.findUniqueOrThrow({ where: { id: customerId }, select: { cartLimit: true } }),
@@ -369,6 +436,7 @@ export async function addToCart(customer: UserActor, postId: string) {
     if (existing) return false;
     const post = await tx.post.findUnique({ where: { id: postId } });
     if (!post || !post.approval) throw notFound('Post');
+    if (post.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This post is already completed.');
     if (post.status !== 'PUBLISHED') {
       throw conflict('POST_UNAVAILABLE', 'Only published posts can be added to the cart.');
     }

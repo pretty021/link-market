@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, Link2, MessageCircle, Send, ShoppingCart, Trash2 } from 'lucide-react';
+import { Eye, Link2, MessageCircle, Send, ShoppingCart, Trash2, X } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
@@ -48,13 +48,32 @@ export default function CartPage() {
   });
   useSocketEvent('cart:updated', () => void load());
   useSocketEvent('check:updated', () => void load());
-  useSocketEvent<{ post: Post; formerHolderId: string }>('post:expired', ({ post, formerHolderId }) => {
+  useSocketEvent<{ post: Post; formerHolderId: string; reason?: 'cancelled' }>('post:expired', ({ post, formerHolderId, reason }) => {
     if (formerHolderId === me.id) {
       if (dialogPostId === post.id) setDialogPostId(null);
-      toast({ title: 'Time expired', body: `"${post.title}" is available again.`, tone: 'error' });
+      if (reason !== 'cancelled') toast({ title: 'Time expired', body: `"${post.title}" is available again.`, tone: 'error' });
     }
     void load();
   });
+
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  async function cancelHold(item: Item) {
+    const id = item.post.id;
+    if (cancelling || !window.confirm(`Cancel your hold on "${item.post.title}"? It becomes available to every customer again.`)) return;
+    setCancelling(id);
+    try {
+      const r = await api<{ post: Post }>(`/api/posts/${id}/cancel`, { method: 'POST' });
+      patchPost(r.post);
+      if (dialogPostId === id) setDialogPostId(null);
+      toast({ title: 'Hold cancelled', body: `"${item.post.title}" is available again.` });
+      await load();
+    } catch (e) {
+      if (e instanceof ApiError && e.data?.post) patchPost(e.data.post as Post);
+      toast({ title: e instanceof ApiError ? e.message : 'Could not cancel.', tone: 'error' });
+    } finally {
+      setCancelling(null);
+    }
+  }
 
   async function confirm(item: Item) {
     const id = item.post.id;
@@ -144,17 +163,18 @@ export default function CartPage() {
                           <Send /> Submit checking info
                         </Button>
                       )
-                    ) : post.status === 'COMPLETED' && item.heldByMe && item.conversationId ? (
-                      <Button variant="purple" onClick={() => router.push(`/chat?c=${item.conversationId}`)}>
-                        <MessageCircle /> Open deal chat
-                      </Button>
                     ) : (
                       <Button
                         onClick={() => confirm(item)}
                         loading={confirming === post.id}
                         disabled={post.status !== 'PUBLISHED' || confirming !== null}
                       >
-                        {post.status === 'PROGRESSING' ? 'In progress' : post.status === 'COMPLETED' ? 'Completed' : 'Confirm'}
+                        {post.status === 'PROGRESSING' ? 'In progress' : 'Confirm'}
+                      </Button>
+                    )}
+                    {held && (
+                      <Button variant="ghost" onClick={() => cancelHold(item)} loading={cancelling === post.id}>
+                        <X /> Cancel hold
                       </Button>
                     )}
                     {!held && (
@@ -169,12 +189,30 @@ export default function CartPage() {
           })}
         </div>
       )}
-      <ConfirmDialog item={dialogItem} onClose={() => setDialogPostId(null)} onExpired={() => void load()} />
+      <ConfirmDialog
+        item={dialogItem}
+        onClose={() => setDialogPostId(null)}
+        onExpired={() => void load()}
+        onCancelHold={(item) => cancelHold(item)}
+        cancelling={!!dialogItem && cancelling === dialogItem.post.id}
+      />
     </>
   );
 }
 
-function ConfirmDialog({ item, onClose, onExpired }: { item: Item | null; onClose: () => void; onExpired: () => void }) {
+function ConfirmDialog({
+  item,
+  onClose,
+  onExpired,
+  onCancelHold,
+  cancelling,
+}: {
+  item: Item | null;
+  onClose: () => void;
+  onExpired: () => void;
+  onCancelHold: (item: Item) => void;
+  cancelling: boolean;
+}) {
   const router = useRouter();
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -222,9 +260,15 @@ function ConfirmDialog({ item, onClose, onExpired }: { item: Item | null; onClos
               <Input id="check-url" type="url" required placeholder="https://..." value={url} onChange={(e) => setUrl(e.target.value)} autoFocus />
             </Field>
             <p className="text-xs text-ink-lo">The client reviews this link and marks it Checked or Not checked before the countdown ends.</p>
-            <Button type="submit" className="w-full" loading={busy}>
-              <Send /> Submit
-            </Button>
+            <div className="grid grid-cols-2 gap-3">
+              <Button type="button" variant="outline" className="w-full" onClick={() => onCancelHold(item)} loading={cancelling} disabled={busy}>
+                <X /> Cancel
+              </Button>
+              <Button type="submit" className="w-full" loading={busy} disabled={cancelling}>
+                <Send /> Submit
+              </Button>
+            </div>
+            <p className="text-xs text-ink-lo">Cancel releases the post: it goes back to approved and every customer can confirm it again.</p>
           </form>
         </DialogContent>
       )}

@@ -5,7 +5,7 @@ import './globals.css';
 const font = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: { default: 'LinkMarket', template: '%s · LinkMarket' },
+  title: 'Marketplace',
   description: 'Browse fresh listings, confirm in real time, and talk directly with the seller.',
 };
 

@@ -1,6 +1,7 @@
-import type { CheckSubmission, Message, MessageType } from '@prisma/client';
+import type { CheckSubmission, Message, MessageType, Prisma } from '@prisma/client';
 import type { Tx } from '@/lib/db';
 import { rooms } from '@/lib/realtime';
+import type { ChatFile } from '@/lib/storage';
 import type { Outbox } from '../outbox';
 
 export const messageInclude = {
@@ -28,6 +29,21 @@ export function toCheckDTO(c: CheckSubmission) {
 }
 export type CheckDTO = ReturnType<typeof toCheckDTO>;
 
+/** File metadata for the UI; the file itself is only served to conversation members via `url`. */
+export function toAttachmentDTO(m: Pick<Message, 'id' | 'conversationId' | 'type' | 'attachment'>) {
+  if (m.type !== 'FILE' || !m.attachment) return null;
+  const a = m.attachment as unknown as ChatFile;
+  return {
+    name: a.name,
+    mimeType: a.mimeType,
+    size: a.size,
+    width: a.width ?? null,
+    height: a.height ?? null,
+    isImage: a.mimeType.startsWith('image/'),
+    url: `/api/conversations/${m.conversationId}/messages/${m.id}/file`,
+  };
+}
+
 /** includeCheck=false strips CheckSubmission data for callers who may not see it. */
 export function toMessageDTO(m: MessageRow, includeCheck: boolean) {
   return {
@@ -35,6 +51,7 @@ export function toMessageDTO(m: MessageRow, includeCheck: boolean) {
     conversationId: m.conversationId,
     type: m.type,
     body: m.body,
+    attachment: toAttachmentDTO(m),
     createdAt: m.createdAt,
     sender: m.senderUser
       ? { kind: 'user' as const, id: m.senderUser.id, name: m.senderUser.name, role: m.senderUser.role }
@@ -57,6 +74,7 @@ export async function addMessage(
     senderUserId?: string | null;
     senderAdminId?: string | null;
     checkSubmissionId?: string | null;
+    attachment?: ChatFile | null;
   },
 ) {
   const m = await tx.message.create({
@@ -67,6 +85,7 @@ export async function addMessage(
       senderUserId: data.senderUserId ?? null,
       senderAdminId: data.senderAdminId ?? null,
       checkSubmissionId: data.checkSubmissionId ?? null,
+      ...(data.attachment ? { attachment: data.attachment as unknown as Prisma.InputJsonValue } : {}),
     },
     include: messageInclude,
   });

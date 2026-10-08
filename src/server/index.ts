@@ -25,7 +25,8 @@ async function serveUpload(req: IncomingMessage, res: ServerResponse) {
   const rel = decodeURIComponent((req.url ?? '').split('?')[0].replace(/^\/uploads\//, ''));
   const file = path.resolve(UPLOAD_DIR, rel);
   const type = MIME[path.extname(file).toLowerCase()];
-  if (!file.startsWith(UPLOAD_DIR + path.sep) || !type) {
+  // Only public images (post covers, avatars). Chat files under files/ are served to conversation members by the API.
+  if (!file.startsWith(path.join(UPLOAD_DIR, 'images') + path.sep) || !type) {
     res.writeHead(404).end();
     return;
   }
@@ -64,6 +65,8 @@ function registerSocket(io: Server, socket: Socket) {
   const viewing = new Set<string>();
 
   socket.join(principalRoom(actor));
+  // Lets the page detect that the browser's (shared) session cookie now belongs to another account.
+  socket.emit('session:hello', { kind: actor.kind, id: actor.id });
   if (actor.kind === 'admin') socket.join(rooms.admins);
   else socket.join(actor.role === 'CUSTOMER' ? rooms.customers : rooms.clients);
 

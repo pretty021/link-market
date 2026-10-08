@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
-import { confirmPost, expireDue, getCart } from '@/server/services/posts';
+import { addToCart, confirmPost, expireDue, getCart } from '@/server/services/posts';
 import { markChecked, markNotChecked, submitCheck } from '@/server/services/checks';
 import { sendMessage } from '@/server/services/chat';
 import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn } from './helpers';
@@ -103,6 +103,38 @@ describe('checking info', () => {
     // Even after the old deadline passes, a COMPLETED post never expires.
     await setExpiresIn(post.id, -10);
     expect(await expireDue()).toEqual([]);
+  });
+
+  it('Checked removes the post from every Customer cart, and a completed post cannot be carted again', async () => {
+    const { client, holder, other, post } = await setup();
+    // `other` also has an unrelated post in their cart, which must stay.
+    await prisma.user.update({ where: { id: other.id }, data: { cartLimit: 2 } });
+    const unrelated = await makePublishedPost(client.id, 'Another listing');
+    await addToCart(other, unrelated.id);
+
+    const { check } = await submitCheck(holder, post.id, 'https://example.com/proof');
+    expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(2);
+
+    await markChecked(client, check.id);
+
+    expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(0);
+    expect(await prisma.cartItem.findMany({ where: { customerId: other.id }, select: { postId: true } })).toEqual([
+      { postId: unrelated.id },
+    ]);
+    expect((await getCart(holder)).items).toHaveLength(0);
+
+    for (const c of [holder, other, await makeCustomer()]) {
+      await expect(addToCart(c, post.id)).rejects.toMatchObject({ status: 409, code: 'POST_COMPLETED' });
+    }
+    expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(0);
+  });
+
+  it('expiry (not completed) keeps cart items', async () => {
+    const { holder, post } = await setup();
+    await setExpiresIn(post.id, -10);
+    await expireDue();
+    expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(2);
+    expect((await getCart(holder)).items).toHaveLength(1);
   });
 
   it('Not checked keeps the post PROGRESSING and does not restart the countdown', async () => {

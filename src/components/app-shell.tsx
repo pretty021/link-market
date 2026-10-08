@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { LogOut, LifeBuoy, ShoppingCart, User } from 'lucide-react';
 import { api } from '@/lib/client/api';
 import { homePath } from '@/lib/home';
-import type { Me } from '@/lib/client/types';
+import type { Me, Post } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
 import { Avatar } from './ui/primitives';
 import { Logo } from './logo';
@@ -63,6 +63,29 @@ function CartButton() {
 function GlobalListeners() {
   const router = useRouter();
   const toast = useToast();
+  const { me } = useMe();
+  const alerted = useRef(new Set<string>());
+
+  // Client: a Customer confirmed one of my posts. Keyed by progressingAt so later
+  // post:updated events for the same hold (e.g. a price edit) don't alert again.
+  useSocketEvent<{ post: Post }>('post:updated', ({ post }) => {
+    if (me.kind !== 'user' || me.role !== 'CLIENT' || post.clientId !== me.id) return;
+    if (post.status !== 'PROGRESSING' || !post.progressingAt) return;
+    const key = `${post.id}:${post.progressingAt}`;
+    if (alerted.current.has(key)) return;
+    alerted.current.add(key);
+    const title = `${post.holderName ?? 'A customer'} confirmed your post`;
+    const body = `"${post.title}" is in progress. The 5-minute countdown has started.`;
+    toast({ title, body, tone: 'success', onClick: () => router.push('/client') });
+    if ('Notification' in window && document.hidden && Notification.permission === 'granted') {
+      const n = new Notification(title, { body, tag: key });
+      n.onclick = () => {
+        window.focus();
+        router.push('/client');
+      };
+    }
+  });
+
   // Client clicked "Checked": both sides jump to the deal chat, wherever they are.
   useSocketEvent<{ conversationId: string }>('check:checked', (p) => {
     toast({ title: 'Checked - completed', body: 'Opening your deal chat.', tone: 'success' });
@@ -179,7 +202,7 @@ function Header() {
 export function AppShell({ me, children }: { me: Me; children: React.ReactNode }) {
   return (
     <ToastProvider>
-      <RealtimeProvider>
+      <RealtimeProvider expectedId={me.id}>
         <SessionProvider initial={me}>
           <GlobalListeners />
           <Header />

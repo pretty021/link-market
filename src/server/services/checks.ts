@@ -1,11 +1,11 @@
 import { DB_NOW, prisma } from '@/lib/db';
 import type { Actor, UserActor } from '@/lib/actor';
 import { conflict, forbidden, notFound } from '@/lib/errors';
-import { rooms } from '@/lib/realtime';
+import { emit, rooms } from '@/lib/realtime';
 import { Outbox } from '../outbox';
 import { notify } from './notifications';
 import { addMessage, toCheckDTO } from './messages';
-import { dbNow, postInclude, pushPost } from './posts';
+import { cartSnapshot, dbNow, postInclude, pushPost } from './posts';
 
 /** CheckSubmission data is visible only to the post's holder, the post's Client and Admins. */
 export function canSeeChecks(actor: Actor, post: { holderId: string | null; clientId: string }) {
@@ -123,6 +123,10 @@ export async function markChecked(client: UserActor, checkId: string) {
     });
     if (changed.count === 0) throw conflict('CHECK_NOT_PENDING', 'This checking info was already reviewed.');
 
+    // A completed post can't be bought again, so it leaves every Customer's cart.
+    const carted = await tx.cartItem.findMany({ where: { postId: check.postId }, select: { customerId: true } });
+    await tx.cartItem.deleteMany({ where: { postId: check.postId } });
+
     const conv = await tx.conversation.findUniqueOrThrow({ where: { pairKey: `${check.postId}:${check.customerId}` } });
     await addMessage(tx, out, { conversationId: conv.id, type: 'SYSTEM', body: 'Checked - completed.' });
     await notify(tx, out, { userId: check.customerId }, {
@@ -141,10 +145,13 @@ export async function markChecked(client: UserActor, checkId: string) {
       conversationId: conv.id,
       postId: check.postId,
     });
-    return { conversationId: conv.id };
+    return { conversationId: conv.id, cartedBy: carted.map((c) => c.customerId) };
   });
   out.flush();
-  return result;
+  for (const customerId of result.cartedBy) {
+    emit(rooms.user(customerId), 'cart:updated', await cartSnapshot(customerId));
+  }
+  return { conversationId: result.conversationId };
 }
 
 /** Client clicks Not checked: submission -> NOT_CHECKED; the post and its countdown are untouched. */

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { badRequest } from './errors';
 import type { ImageInfo } from './validation';
@@ -89,6 +89,81 @@ export async function storeImage(buf: Buffer): Promise<ImageInfo> {
     url = `/uploads/${key}`;
   }
   return { url, key, mimeType: info.mimeType, size: buf.length, width: info.width, height: info.height };
+}
+
+// ───────────────────────── Chat files ─────────────────────────
+
+export const MAX_CHAT_FILE_BYTES = 10 * 1024 * 1024;
+export type ChatFile = { name: string; key: string; mimeType: string; size: number; width?: number; height?: number };
+
+/** Office files and archives share the ZIP signature; the extension decides which one it is. */
+const ZIP_TYPES: Record<string, string> = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip',
+};
+const TEXT_TYPES: Record<string, string> = { txt: 'text/plain', csv: 'text/csv', md: 'text/markdown' };
+
+/** Detects an allowed chat file from its bytes (+ extension for ZIP and text formats). Returns null if not allowed. */
+export function sniffChatFile(buf: Buffer, name: string): { mimeType: string; ext: string; width?: number; height?: number } | null {
+  const ext = (name.match(/\.([a-z0-9]{1,8})$/i)?.[1] ?? '').toLowerCase();
+  const image = sniffImage(buf);
+  if (image) return { mimeType: image.mimeType, ext: EXT[image.mimeType], width: image.width, height: image.height };
+  if (buf.length >= 6 && /^GIF8[79]a$/.test(buf.toString('ascii', 0, 6))) {
+    return { mimeType: 'image/gif', ext: 'gif', width: buf.readUInt16LE(6), height: buf.readUInt16LE(8) };
+  }
+  if (buf.length >= 5 && buf.toString('ascii', 0, 5) === '%PDF-') return { mimeType: 'application/pdf', ext: 'pdf' };
+  if (buf.length >= 4 && buf.readUInt32BE(0) === 0x504b0304 && ZIP_TYPES[ext]) return { mimeType: ZIP_TYPES[ext], ext };
+  // Plain text: an allowed extension and no NUL bytes in the first 8 KB.
+  if (TEXT_TYPES[ext] && !buf.subarray(0, 8192).includes(0)) return { mimeType: TEXT_TYPES[ext], ext };
+  return null;
+}
+
+/** File names are only displayed and used as the download name: keep them short and printable. */
+function cleanFileName(name: string, ext: string) {
+  const base = name.replace(/[\\/]/g, '_').replace(/[\u0000-\u001f\u007f"<>|*?:]/g, '').trim().slice(0, 120);
+  return base || `file.${ext}`;
+}
+
+/** Stores a chat file under files/ (never served by the public /uploads route). */
+export async function storeChatFile(buf: Buffer, originalName: string): Promise<ChatFile> {
+  if (buf.length === 0) throw badRequest('EMPTY_FILE', 'The file is empty.');
+  if (buf.length > MAX_CHAT_FILE_BYTES) throw badRequest('FILE_TOO_LARGE', 'Files must be 10 MB or smaller.');
+  const info = sniffChatFile(buf, originalName);
+  if (!info) {
+    throw badRequest('UNSUPPORTED_TYPE', 'Allowed files: images (JPG, PNG, WEBP, GIF), PDF, Word, Excel, PowerPoint, ZIP, TXT, CSV.');
+  }
+  const key = `files/${new Date().toISOString().slice(0, 10)}/${randomBytes(16).toString('hex')}.${info.ext}`;
+  if (s3Enabled()) {
+    const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+    const client = await s3();
+    await client.send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: buf, ContentType: info.mimeType }));
+  } else {
+    const file = path.join(UPLOAD_DIR, key);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, buf);
+  }
+  return {
+    name: cleanFileName(originalName, info.ext),
+    key,
+    mimeType: info.mimeType,
+    size: buf.length,
+    ...(info.width ? { width: info.width, height: info.height } : {}),
+  };
+}
+
+const CHAT_KEY_RE = /^files\/[\w-]+\/[a-f0-9]{32}\.[a-z0-9]{1,8}$/;
+
+export async function readChatFile(key: string): Promise<Buffer> {
+  if (!CHAT_KEY_RE.test(key)) throw badRequest('BAD_KEY');
+  if (s3Enabled()) {
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const client = await s3();
+    const r = await client.send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
+    return Buffer.from(await r.Body!.transformToByteArray());
+  }
+  return readFile(path.join(UPLOAD_DIR, key));
 }
 
 export async function deleteStoredImage(key: string) {

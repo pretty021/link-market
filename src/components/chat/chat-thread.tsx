@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check as CheckIcon, ExternalLink, Lock, Send, X } from 'lucide-react';
+import { ArrowLeft, Check as CheckIcon, Download, ExternalLink, FileText, Lock, Paperclip, Send, Smile, X } from 'lucide-react';
 import { Countdown, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useRoom, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, Badge, Empty, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import { useCountdown } from '@/lib/client/clock';
-import type { Check, CheckStatus, Conversation, Message, Post } from '@/lib/client/types';
+import type { Attachment, Check, CheckStatus, Conversation, Message, Post } from '@/lib/client/types';
 import { cn, formatPrice } from '@/lib/utils';
 
 type Deal = { latestCheck: Check | null; canSendText: boolean; isHolder: boolean; isClient: boolean };
@@ -80,8 +80,8 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
     stickToBottom.current = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     setData((d) => (d && !d.messages.some((m) => m.id === message.id) ? { ...d, messages: [...d.messages, message] } : d));
     if (isParticipant) markRead();
-    // CHECK_REQUEST / SYSTEM messages change what the composer allows.
-    if (message.type !== 'TEXT') void load();
+    // CHECK_REQUEST / SYSTEM messages change what the composer allows (TEXT and FILE do not).
+    if (message.type !== 'TEXT' && message.type !== 'FILE') void load();
   });
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => {
     if (conv?.post?.id === post.id) setConv((c) => c && { ...c, post: { ...c.post!, ...post, holderName: post.holderName ?? c.post!.holderName } });
@@ -195,7 +195,8 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
                     mine ? 'rounded-br-md bg-brand-purple text-white' : 'rounded-bl-md bg-bg-elev text-ink-hi',
                   )}
                 >
-                  {m.body}
+                  {m.attachment && <AttachmentView file={m.attachment} mine={mine} />}
+                  {m.body && <p className={cn(m.attachment && 'mt-2')}>{m.body}</p>}
                 </div>
               )}
             </div>
@@ -214,6 +215,94 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
         }}
         onResubmitted={() => void load()}
       />
+    </div>
+  );
+}
+
+function formatSize(bytes: number) {
+  return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Images preview inline (click opens full size); other files show a download card. */
+function AttachmentView({ file, mine }: { file: Attachment; mine: boolean }) {
+  if (file.isImage) {
+    return (
+      <a href={file.url} target="_blank" rel="noopener noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element -- private, authenticated file URL */}
+        <img
+          src={file.url}
+          alt={file.name}
+          width={file.width ?? undefined}
+          height={file.height ?? undefined}
+          loading="lazy"
+          className="max-h-72 w-auto max-w-full rounded-xl object-contain"
+        />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={`${file.url}?download=1`}
+      download={file.name}
+      className={cn(
+        'flex min-w-[200px] items-center gap-3 rounded-xl border px-3 py-2 no-underline',
+        mine ? 'border-white/25 bg-white/10 hover:bg-white/15' : 'border-line bg-bg-base/60 hover:bg-bg-base',
+      )}
+    >
+      <FileText className="size-8 shrink-0 opacity-80" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium">{file.name}</span>
+        <span className="block text-[11px] opacity-70">{formatSize(file.size)}</span>
+      </span>
+      <Download className="size-4 shrink-0 opacity-80" />
+    </a>
+  );
+}
+
+const EMOJIS = [
+  '😀', '😂', '🙂', '😊', '😍', '😎', '🤔', '😅', '😉', '🥳', '😢', '😮',
+  '👍', '👎', '👏', '🙏', '💪', '🤝', '👌', '✌️', '👋', '🙌', '🔥', '✨',
+  '❤️', '💯', '✅', '❌', '⚡', '🎉', '💰', '💵', '📎', '📄', '⏰', '🚀',
+];
+
+/** A small emoji palette; picking one inserts it at the cursor. */
+function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  return (
+    <div ref={box} className="relative">
+      <Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Insert emoji" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <Smile />
+      </Button>
+      {open && (
+        <div role="menu" className="absolute bottom-12 left-0 z-20 grid w-72 grid-cols-6 gap-1 rounded-xl border border-line bg-bg-elev p-2 shadow-lg">
+          {EMOJIS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              role="menuitem"
+              className="rounded-lg p-1.5 text-xl leading-none hover:bg-bg-base"
+              onClick={() => onPick(e)}
+              aria-label={`Insert ${e}`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -290,6 +379,9 @@ function Composer({
   const toast = useToast();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { done } = useCountdown(post?.status === 'PROGRESSING' ? post.progressingExpiresAt : null);
 
   if (readOnly) {
@@ -335,16 +427,46 @@ function Composer({
     return <div className="border-t border-line/70 px-4 py-3 text-center text-xs text-ink-lo">{why}</div>;
   }
 
+  function insertEmoji(emoji: string) {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    setText(text.slice(0, start) + emoji + text.slice(end));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  }
+
+  function pickFile(f: File | undefined) {
+    if (!f) return;
+    if (f.size > MAX_FILE_BYTES) {
+      toast({ title: 'Files must be 10 MB or smaller.', tone: 'error' });
+      return;
+    }
+    setFile(f);
+    inputRef.current?.focus();
+  }
+
   return (
     <form
-      className="flex gap-2 border-t border-line/70 p-3"
+      className="border-t border-line/70 p-3"
       onSubmit={async (e) => {
         e.preventDefault();
         const body = text.trim();
-        if (!body) return;
+        if (!body && !file) return;
         setBusy(true);
         try {
-          const r = await api<{ message: Message }>(`/api/conversations/${conversationId}/messages`, { json: { body } });
+          let r: { message: Message };
+          if (file) {
+            const form = new FormData();
+            form.append('file', file);
+            if (body) form.append('caption', body);
+            r = await api<{ message: Message }>(`/api/conversations/${conversationId}/files`, { form });
+            setFile(null);
+          } else {
+            r = await api<{ message: Message }>(`/api/conversations/${conversationId}/messages`, { json: { body } });
+          }
           setText('');
           onSent(r.message);
         } catch (err) {
@@ -354,10 +476,52 @@ function Composer({
         }
       }}
     >
-      <Input placeholder="Type a message..." value={text} onChange={(e) => setText(e.target.value)} maxLength={4000} />
-      <Button type="submit" size="icon" className="size-10 shrink-0" loading={busy} aria-label="Send">
-        {!busy && <Send />}
-      </Button>
+      {file && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-bg-base/60 px-3 py-1.5 text-xs">
+          <Paperclip className="size-3.5 shrink-0 text-ink-lo" />
+          <span className="min-w-0 flex-1 truncate">{file.name}</span>
+          <span className="shrink-0 text-ink-lo">{formatSize(file.size)}</span>
+          <button type="button" onClick={() => setFile(null)} className="rounded p-0.5 text-ink-lo hover:text-ink-hi" aria-label="Remove file">
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          accept={FILE_ACCEPT}
+          onChange={(e) => {
+            pickFile(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+        <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0" aria-label="Attach a file" onClick={() => fileRef.current?.click()} disabled={busy}>
+          <Paperclip />
+        </Button>
+        <EmojiPicker onPick={insertEmoji} />
+        <Input
+          ref={inputRef}
+          placeholder={file ? 'Add a caption (optional)...' : 'Type a message...'}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.files?.[0];
+            if (pasted) {
+              e.preventDefault();
+              pickFile(pasted);
+            }
+          }}
+          maxLength={4000}
+        />
+        <Button type="submit" size="icon" className="size-10 shrink-0" loading={busy} aria-label="Send">
+          {!busy && <Send />}
+        </Button>
+      </div>
     </form>
   );
 }
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const FILE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.docx,.xlsx,.pptx,.zip,.txt,.csv,.md';

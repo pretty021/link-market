@@ -55,9 +55,9 @@ export default function FeedPage() {
     setPosts((prev) => prev?.map((p) => (p.id === postId ? { ...p, viewers: count } : p)) ?? prev),
   );
   useSocketEvent<{ postIds: string[] }>('cart:updated', ({ postIds }) => setCart(new Set(postIds)));
-  useSocketEvent<{ post: Post; formerHolderId: string }>('post:expired', ({ post, formerHolderId }) => {
+  useSocketEvent<{ post: Post; formerHolderId: string; reason?: 'cancelled' }>('post:expired', ({ post, formerHolderId, reason }) => {
     upsert(post);
-    if (formerHolderId === me.id) toast({ title: 'Time expired', body: `"${post.title}" is available again.`, tone: 'error' });
+    if (formerHolderId === me.id && reason !== 'cancelled') toast({ title: 'Time expired', body: `"${post.title}" is available again.`, tone: 'error' });
   });
 
   async function toggleCart(p: Post) {

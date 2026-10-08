@@ -63,11 +63,23 @@ export type Check = {
   createdAt: string;
 };
 
+/** A file sent in chat; `url` only works for members of the conversation. */
+export type Attachment = {
+  name: string;
+  mimeType: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+  isImage: boolean;
+  url: string;
+};
+
 export type Message = {
   id: string;
   conversationId: string;
-  type: 'TEXT' | 'CHECK_REQUEST' | 'SYSTEM';
+  type: 'TEXT' | 'CHECK_REQUEST' | 'SYSTEM' | 'FILE';
   body: string | null;
+  attachment: Attachment | null;
   createdAt: string;
   sender: { kind: 'user' | 'admin'; id: string; name: string; role: string } | null;
   checkSubmissionId: string | null;

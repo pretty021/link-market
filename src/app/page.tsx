@@ -110,7 +110,7 @@ export default async function Landing() {
         <nav className="hidden gap-6 text-sm text-ink-mid md:flex">
           <a href="#how" className="hover:text-ink-hi">How it works</a>
           <a href="#features" className="hover:text-ink-hi">Features</a>
-          <a href="#benefits" className="hover:text-ink-hi">Why LinkMarket</a>
+          <a href="#benefits" className="hover:text-ink-hi">Why us</a>
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <Link href="/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-ink-mid hover:text-ink-hi">Log in</Link>
@@ -222,7 +222,7 @@ export default async function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-line/60 py-8 text-center text-xs text-ink-lo">© {new Date().getFullYear()} LinkMarket</footer>
+      <footer className="border-t border-line/60 py-8 text-center text-xs text-ink-lo">© {new Date().getFullYear()}</footer>
     </div>
   );
 }

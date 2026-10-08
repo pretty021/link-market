@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import type { Actor, AdminActor } from '@/lib/actor';
 import { badRequest, conflict, forbidden, notFound } from '@/lib/errors';
 import { isViewingConversation, rooms } from '@/lib/realtime';
+import { readChatFile, storeChatFile, type ChatFile } from '@/lib/storage';
 import { Outbox } from '../outbox';
 import { notify } from './notifications';
 import { addMessage, messageInclude, toMessageDTO } from './messages';
@@ -17,7 +18,7 @@ const convInclude = {
       admin: { select: { id: true, name: true, email: true } },
     },
   },
-  messages: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { body: true, type: true, createdAt: true } },
+  messages: { orderBy: { createdAt: 'desc' as const }, take: 1, select: { body: true, type: true, createdAt: true, attachment: true } },
 } satisfies Prisma.ConversationInclude;
 
 type ConvRow = Prisma.ConversationGetPayload<{ include: typeof convInclude }>;
@@ -39,7 +40,7 @@ function toConversationDTO(c: ConvRow, actor: Actor, unread: number) {
     participants,
     title: others.map((o) => o.name).join(', ') || participants.map((p) => p.name).join(', '),
     lastMessageAt: c.lastMessageAt,
-    lastMessage: last ? { body: last.type === 'CHECK_REQUEST' ? 'Checking info submitted' : last.body, type: last.type } : null,
+    lastMessage: last ? { body: last.type === 'CHECK_REQUEST' ? 'Checking info submitted' : last.type === 'FILE' ? `📎 ${(last.attachment as { name?: string } | null)?.name ?? 'File'}` : last.body, type: last.type } : null,
     unread,
     isParticipant: participants.some((p) => p.id === actor.id),
   };
@@ -186,7 +187,27 @@ export async function listMessages(actor: Actor, conversationId: string, cursor?
 }
 
 export async function sendMessage(actor: Actor, conversationId: string, body: string) {
-  const conv = await loadAccessible(actor, conversationId);
+  return postMessage(actor, conversationId, { body, attachment: null });
+}
+
+/** Sends a file (with an optional caption). Same permissions as text: deal-chat Customers only after Checked. */
+export async function sendFile(actor: Actor, conversationId: string, file: { buf: Buffer; name: string }, caption: string | null) {
+  // Permission first, so a refused sender never stores a file.
+  await assertCanSend(actor, await loadAccessible(actor, conversationId));
+  const attachment = await storeChatFile(file.buf, file.name);
+  return postMessage(actor, conversationId, { body: caption, attachment });
+}
+
+/** The stored file of a FILE message, for a member of its conversation (or an Admin). */
+export async function getChatFile(actor: Actor, conversationId: string, messageId: string) {
+  await loadAccessible(actor, conversationId);
+  const m = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!m || m.conversationId !== conversationId || m.type !== 'FILE' || !m.attachment) throw notFound('File');
+  const a = m.attachment as unknown as ChatFile;
+  return { ...a, buf: await readChatFile(a.key) };
+}
+
+async function assertCanSend(actor: Actor, conv: Awaited<ReturnType<typeof loadAccessible>>) {
   if (actor.kind === 'admin') {
     if (conv.type === 'DEAL') throw forbidden('Deal chats are read-only for admins.');
     if (!conv.participants.some((p) => p.adminId === actor.id)) throw forbidden('Open your own chat with this user to reply.');
@@ -199,6 +220,12 @@ export async function sendMessage(actor: Actor, conversationId: string, body: st
       throw conflict('CHECK_REQUIRED', 'You can chat after the client marks your checking info as Checked.');
     }
   }
+}
+
+async function postMessage(actor: Actor, conversationId: string, content: { body: string | null; attachment: ChatFile | null }) {
+  const { body, attachment } = content;
+  const conv = await loadAccessible(actor, conversationId);
+  await assertCanSend(actor, conv);
 
   // Who is not looking at this chat right now -> gets a NEW_MESSAGE notification.
   const recipients = conv.participants.filter((p) => (actor.kind === 'admin' ? p.adminId !== actor.id : p.userId !== actor.id));
@@ -212,8 +239,9 @@ export async function sendMessage(actor: Actor, conversationId: string, body: st
   const message = await prisma.$transaction(async (tx) => {
     const m = await addMessage(tx, out, {
       conversationId,
-      type: 'TEXT',
+      type: attachment ? 'FILE' : 'TEXT',
       body,
+      attachment,
       senderUserId: actor.kind === 'user' ? actor.id : null,
       senderAdminId: actor.kind === 'admin' ? actor.id : null,
     });
@@ -231,7 +259,7 @@ export async function sendMessage(actor: Actor, conversationId: string, body: st
         await notify(tx, out, owner, {
           type: 'NEW_MESSAGE',
           title: `New message from ${actor.name ?? 'Admin'}`,
-          body: body.slice(0, 140),
+          body: attachment ? `Sent a file: ${attachment.name}` : (body ?? '').slice(0, 140),
           postId: conv.postId,
           conversationId,
         });

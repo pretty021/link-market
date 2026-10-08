@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CircleCheck, FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
@@ -13,7 +13,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Avatar, Badge, Card, CardHeader, Empty, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import type { ImageInfo, Post } from '@/lib/client/types';
-import { formatPrice, timeAgo } from '@/lib/utils';
+import { cn, formatPrice, timeAgo } from '@/lib/utils';
 
 type OnlineCustomer = { id: string; name: string; image: ImageInfo | null };
 type ChatRow = {
@@ -32,7 +32,10 @@ export default function ClientDashboard() {
   const [chats, setChats] = useState<ChatRow[] | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
 
-  const loadPosts = useCallback(async () => setPosts((await api<{ posts: Post[] }>('/api/client/posts')).posts), []);
+  const loadPosts = useCallback(
+    async () => setPosts([...(await api<{ posts: Post[] }>('/api/client/posts')).posts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))),
+    [],
+  );
   const loadOnline = useCallback(async () => setOnline((await api<{ customers: OnlineCustomer[] }>('/api/client/customers/online')).customers), []);
   const loadChats = useCallback(async () => setChats((await api<{ chats: ChatRow[] }>('/api/client/customers/by-chat')).chats), []);
 
@@ -53,8 +56,26 @@ export default function ClientDashboard() {
     return () => clearInterval(id);
   }, [loadOnline]);
 
-  const upsert = (p: Post) =>
-    setPosts((prev) => (prev ? (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [p, ...prev]) : prev));
+  const [flash, setFlash] = useState<Set<string>>(new Set());
+
+  // Newest status change first. updatedAt moves on every status transition (set from the DB clock).
+  const sorted = (list: Post[]) => [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  const postsRef = useRef(posts);
+  postsRef.current = posts;
+
+  const upsert = (p: Post) => {
+    const old = postsRef.current?.find((x) => x.id === p.id);
+    if (!old || old.status !== p.status) {
+      setFlash((f) => new Set(f).add(p.id));
+      setTimeout(() => setFlash((f) => {
+        const n = new Set(f);
+        n.delete(p.id);
+        return n;
+      }), 3000);
+    }
+    setPosts((prev) => (prev ? sorted(prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [p, ...prev]) : prev));
+  };
 
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => upsert(post));
   useSocketEvent<{ post: Post }>('post:published', ({ post }) => upsert(post));
@@ -95,7 +116,10 @@ export default function ClientDashboard() {
           ) : (
             <ul className="divide-y divide-line/50">
               {posts.map((p) => (
-                <li key={p.id} className="flex gap-4 p-4">
+                <li
+                  key={p.id}
+                  className={cn('flex gap-4 p-4 transition-colors duration-700', flash.has(p.id) && 'bg-brand-mint/10 ring-1 ring-inset ring-brand-mint/50')}
+                >
                   <div className="h-20 w-28 shrink-0 overflow-hidden rounded-xl">
                     <PostImage image={p.image} title={p.title} />
                   </div>

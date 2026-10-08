@@ -9,7 +9,7 @@ const SocketCtx = createContext<Ctx>({ socket: null, connected: false });
 
 const HEARTBEAT_MS = 30_000;
 
-export function RealtimeProvider({ children }: { children: React.ReactNode }) {
+export function RealtimeProvider({ expectedId, children }: { expectedId: string; children: React.ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
 
@@ -25,12 +25,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     s.on('session:revoked', () => {
       window.location.href = '/login?blocked=1';
     });
+    // All tabs share one session cookie. If another tab logged in as a different account, this
+    // socket (re)connected as that account and would silently stop receiving this page's events.
+    // Reload so the page matches the real session.
+    s.on('session:hello', (p: { id: string }) => {
+      if (p.id !== expectedId) window.location.reload();
+    });
     const hb = setInterval(() => s.connected && s.emit('heartbeat'), HEARTBEAT_MS);
     return () => {
       clearInterval(hb);
       s.disconnect();
     };
-  }, []);
+  }, [expectedId]);
 
   return <SocketCtx.Provider value={{ socket, connected }}>{children}</SocketCtx.Provider>;
 }

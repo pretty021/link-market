@@ -44,6 +44,7 @@ enum MessageType {
   TEXT
   CHECK_REQUEST   // carries a CheckSubmission, shows Checked / Not checked buttons to the Client
   SYSTEM          // automatic notices, e.g. "Checked - post completed", "Time expired"
+  FILE            // a file sent in chat (Message.attachment); body is an optional caption
 }
 
 enum NotificationType {
@@ -281,6 +282,9 @@ model Message {
   senderAdmin    Admin?       @relation(fields: [senderAdminId], references: [id])
   type           MessageType  @default(TEXT)
   body           String?
+  // FILE messages: { name, key, mimeType, size, width?, height? }. Served only to conversation members
+  // through /api/conversations/:id/messages/:messageId/file, never from the public /uploads path.
+  attachment     Json?
 
   checkSubmissionId String?          @unique
   checkSubmission   CheckSubmission? @relation(fields: [checkSubmissionId], references: [id])
