@@ -145,12 +145,11 @@ export default function CartPage() {
                     <span className="text-xl font-bold">{formatPrice(post.price)}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mid">
-                    <StatusBadge status={post.status} mine={held} />
+                    <StatusBadge status={post.status} mine={held} clientChecking={held && !!post.progressingPausedAt} />
                     <span className="flex items-center gap-1"><Link2 className="size-3.5" /> {post.connects} connects</span>
                     <span className="flex items-center gap-1"><Eye className="size-3.5" /> {post.viewCount} views</span>
-                    {held && <Countdown expiresAt={post.progressingExpiresAt} onDone={() => void load()} />}
+                    {held && <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={() => void load()} />}
                     {held && item.latestCheckStatus === 'NOT_CHECKED' && <Badge tone="red">Not checked - resubmit</Badge>}
-                    {held && pending && <Badge tone="amber">Waiting for the client</Badge>}
                   </div>
                   <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
                     {held ? (
@@ -252,7 +251,7 @@ function ConfirmDialog({
             </div>
             <div className="flex flex-col justify-center rounded-xl border border-line bg-bg-base/60 p-3">
               <p className="text-[11px] text-ink-lo">Time left</p>
-              <Countdown expiresAt={item.post.progressingExpiresAt} onDone={onExpired} className="mt-1 self-start" />
+              <Countdown expiresAt={item.post.progressingExpiresAt} paused={!!item.post.progressingPausedAt} onDone={onExpired} className="mt-1 self-start" />
             </div>
           </div>
           <form onSubmit={submit} className="mt-5 space-y-3">

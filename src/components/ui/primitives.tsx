@@ -33,7 +33,7 @@ export function CardHeader({ title, subtitle, action, icon }: { title: React.Rea
   return (
     <div className="flex items-start justify-between gap-3 border-b border-line/60 px-5 py-4">
       <div className="flex min-w-0 items-start gap-3">
-        {icon && <div className="mt-0.5 text-brand-mint">{icon}</div>}
+        {icon && <div className="mt-0.5 text-ink-lo">{icon}</div>}
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold text-ink-hi">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-ink-lo">{subtitle}</p>}
@@ -46,16 +46,25 @@ export function CardHeader({ title, subtitle, action, icon }: { title: React.Rea
 
 type Tone = 'mint' | 'purple' | 'amber' | 'red' | 'slate';
 const tones: Record<Tone, string> = {
-  mint: 'border-brand-mint/40 bg-brand-mint/10 text-brand-mint',
-  purple: 'border-brand-purple/50 bg-brand-purple/15 text-brand-purpleSoft',
-  amber: 'border-state-warn/40 bg-state-warn/10 text-state-warn',
-  red: 'border-state-err/40 bg-state-err/10 text-state-err',
-  slate: 'border-line bg-bg-elev text-ink-mid',
+  mint: 'bg-brand-mint/10 text-brand-mint',
+  purple: 'bg-brand-purple/10 text-brand-purple',
+  amber: 'bg-state-warn/10 text-state-warn',
+  red: 'bg-state-err/10 text-state-err',
+  slate: 'bg-bg-elev text-ink-mid',
+};
+const dots: Record<Tone, string> = {
+  mint: 'bg-brand-mint',
+  purple: 'bg-brand-purple',
+  amber: 'bg-state-warn',
+  red: 'bg-state-err',
+  slate: 'bg-ink-lo',
 };
 
-export function Badge({ tone = 'slate', className, children }: { tone?: Tone; className?: string; children: React.ReactNode }) {
+/** Status label: tinted background, colored dot, no border. */
+export function Badge({ tone = 'slate', className, children, dot = true }: { tone?: Tone; className?: string; children: React.ReactNode; dot?: boolean }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold', tones[tone], className)}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold', tones[tone], className)}>
+      {dot && <span className={cn('size-1.5 shrink-0 rounded-full', dots[tone])} />}
       {children}
     </span>
   );
@@ -66,10 +75,10 @@ export function Avatar({ name, src, size = 36, online }: { name: string | null |
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="size-full rounded-full object-cover ring-2 ring-brand-purple/40" />
+        <img src={src} alt="" className="size-full rounded-full object-cover" />
       ) : (
         <span
-          className="flex size-full items-center justify-center rounded-full bg-grad-purple font-semibold text-white ring-2 ring-brand-purple/30"
+          className="flex size-full items-center justify-center rounded-full bg-brand-mint/10 font-semibold text-brand-mint"
           style={{ fontSize: size * 0.36 }}
         >
           {initials(name)}

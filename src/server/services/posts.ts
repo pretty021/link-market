@@ -42,6 +42,7 @@ export function toPostDTO(p: PostRow, opts: { staff: boolean }) {
     holderName: opts.staff ? (p.holder?.name ?? null) : null,
     progressingAt: p.progressingAt,
     progressingExpiresAt: p.progressingExpiresAt,
+    progressingPausedAt: p.progressingPausedAt,
     completedAt: p.completedAt,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
@@ -80,7 +81,7 @@ export async function expireDue(postIds?: string[]): Promise<string[]> {
   // Cheap indexed probe so ordinary reads don't open a transaction when nothing is due.
   const due = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM "Post"
-    WHERE status = 'PROGRESSING' AND "progressingExpiresAt" <= ${DB_NOW}
+    WHERE status = 'PROGRESSING' AND "progressingPausedAt" IS NULL AND "progressingExpiresAt" <= ${DB_NOW}
     ${postIds ? Prisma.sql`AND id = ANY(${postIds})` : Prisma.empty}
     LIMIT 1`;
   if (due.length === 0) return [];
@@ -93,16 +94,16 @@ export async function expireDue(postIds?: string[]): Promise<string[]> {
       >`
         WITH due AS (
           SELECT id, "holderId" FROM "Post"
-          WHERE status = 'PROGRESSING' AND "progressingExpiresAt" <= ${DB_NOW}
+          WHERE status = 'PROGRESSING' AND "progressingPausedAt" IS NULL AND "progressingExpiresAt" <= ${DB_NOW}
           ${postIds ? Prisma.sql`AND id = ANY(${postIds})` : Prisma.empty}
           ORDER BY id
           FOR UPDATE
         )
         UPDATE "Post" p
         SET status = 'PUBLISHED', "holderId" = NULL,
-            "progressingAt" = NULL, "progressingExpiresAt" = NULL, "updatedAt" = ${DB_NOW}
+            "progressingAt" = NULL, "progressingExpiresAt" = NULL, "progressingPausedAt" = NULL, "updatedAt" = ${DB_NOW}
         FROM due
-        WHERE p.id = due.id AND p.status = 'PROGRESSING' AND p."progressingExpiresAt" <= ${DB_NOW}
+        WHERE p.id = due.id AND p.status = 'PROGRESSING' AND p."progressingPausedAt" IS NULL AND p."progressingExpiresAt" <= ${DB_NOW}
         RETURNING p.id, p."clientId", p.title, due."holderId" AS "formerHolderId"`;
 
       if (rows.length === 0) return [];
@@ -165,7 +166,7 @@ export async function confirmPost(customer: UserActor, postId: string) {
     prisma.$queryRaw<{ id: string; progressingExpiresAt: Date; serverNow: Date }[]>`
       UPDATE "Post"
       SET status = 'PROGRESSING', "holderId" = ${customer.id},
-          "progressingAt" = ${DB_NOW}, "progressingExpiresAt" = ${DB_NOW} + interval '5 minutes',
+          "progressingAt" = ${DB_NOW}, "progressingExpiresAt" = ${DB_NOW} + interval '5 minutes', "progressingPausedAt" = NULL,
           "updatedAt" = ${DB_NOW}
       WHERE id = ${postId}
         AND status = 'PUBLISHED'
@@ -220,7 +221,7 @@ export async function cancelHold(customer: UserActor, postId: string) {
       const rows = await tx.$queryRaw<{ id: string; clientId: string; title: string }[]>`
         UPDATE "Post"
         SET status = 'PUBLISHED', "holderId" = NULL,
-            "progressingAt" = NULL, "progressingExpiresAt" = NULL, "updatedAt" = ${DB_NOW}
+            "progressingAt" = NULL, "progressingExpiresAt" = NULL, "progressingPausedAt" = NULL, "updatedAt" = ${DB_NOW}
         WHERE id = ${postId} AND status = 'PROGRESSING' AND "holderId" = ${customer.id}
         RETURNING id, "clientId", title`;
 

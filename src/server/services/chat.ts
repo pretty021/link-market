@@ -249,21 +249,16 @@ async function postMessage(actor: Actor, conversationId: string, content: { body
       where: { conversationId, ...(actor.kind === 'admin' ? { adminId: actor.id } : { userId: actor.id }) },
       data: { lastReadAt: m.createdAt },
     });
+    // Every message notifies each participant who isn't looking at this chat; opening the chat
+    // marks all of that chat's NEW_MESSAGE notifications read at once.
     for (const p of notViewing) {
-      const owner = p.userId ? { userId: p.userId } : { adminId: p.adminId! };
-      // One unread NEW_MESSAGE per conversation is enough; don't stack them.
-      const existing = await tx.notification.findFirst({
-        where: { ...owner, conversationId, type: 'NEW_MESSAGE', readAt: null },
+      await notify(tx, out, p.userId ? { userId: p.userId } : { adminId: p.adminId! }, {
+        type: 'NEW_MESSAGE',
+        title: `New message from ${actor.name ?? 'Admin'}`,
+        body: attachment ? `Sent a file: ${attachment.name}${body ? ` - ${body.slice(0, 100)}` : ''}` : (body ?? '').slice(0, 140),
+        postId: conv.postId,
+        conversationId,
       });
-      if (!existing) {
-        await notify(tx, out, owner, {
-          type: 'NEW_MESSAGE',
-          title: `New message from ${actor.name ?? 'Admin'}`,
-          body: attachment ? `Sent a file: ${attachment.name}` : (body ?? '').slice(0, 140),
-          postId: conv.postId,
-          conversationId,
-        });
-      }
     }
     out.push(
       conv.participants.map((p) => (p.userId ? rooms.user(p.userId) : rooms.admin(p.adminId!))),

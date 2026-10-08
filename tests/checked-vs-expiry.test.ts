@@ -63,12 +63,13 @@ describe('Checked vs expiry at the deadline', () => {
     expect(checkedWins + expiryWins).toBe(20);
   });
 
-  it('Checked after the deadline returns TIME_EXPIRED and changes nothing', async () => {
+  it('while Client Checking the clock is stopped: Checked still completes after the old deadline', async () => {
     const { client, post, check } = await progressingWithPendingCheck();
     await setExpiresIn(post.id, -1000);
-    await expect(markChecked(client, check.id)).rejects.toMatchObject({ status: 409, code: 'TIME_EXPIRED' });
-    expect((await prisma.post.findUniqueOrThrow({ where: { id: post.id } })).status).toBe('PROGRESSING');
-    expect(await expireDue()).toEqual([post.id]);
+    expect(await expireDue()).toEqual([]);
+    await markChecked(client, check.id);
+    const row = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
+    expect(row).toMatchObject({ status: 'COMPLETED', progressingPausedAt: null });
   });
 
   it('expiry does nothing to a post completed before the deadline', async () => {

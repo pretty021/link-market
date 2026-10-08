@@ -41,7 +41,7 @@ export default function AdminPosts() {
             onClick={() => setFilter(f)}
             className={cn(
               'rounded-full border px-3 py-1 text-xs font-semibold transition',
-              filter === f ? 'border-brand-mint bg-brand-mint/15 text-brand-mint' : 'border-line text-ink-mid hover:text-ink-hi',
+              filter === f ? 'border-primary bg-primary text-on-primary' : 'border-line text-ink-mid hover:text-ink-hi',
             )}
           >
             {f === 'ALL' ? 'All' : f.charAt(0) + f.slice(1).toLowerCase()} {posts && `(${f === 'ALL' ? posts.length : posts.filter((p) => p.status === f).length})`}
@@ -81,13 +81,13 @@ export default function AdminPosts() {
                   <td className="px-4 py-3 text-ink-mid">{p.clientName}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <StatusBadge status={p.status} />
+                      <StatusBadge status={p.status} clientChecking={!!p.progressingPausedAt} />
                       {p.approval && p.status !== 'REQUESTED' && <Badge tone="slate">Approved</Badge>}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-ink-mid">{p.holderName ?? '-'}</td>
                   <td className="px-4 py-3">
-                    {p.status === 'PROGRESSING' ? <Countdown expiresAt={p.progressingExpiresAt} onDone={() => void load()} /> : <span className="text-ink-lo">-</span>}
+                    {p.status === 'PROGRESSING' ? <Countdown expiresAt={p.progressingExpiresAt} paused={!!p.progressingPausedAt} onDone={() => void load()} /> : <span className="text-ink-lo">-</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">{formatPrice(p.price)}</td>
                   <td className="px-4 py-3 text-right text-ink-mid">{p.viewCount} <span className="text-ink-lo">({p.viewers} now)</span></td>

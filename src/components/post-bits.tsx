@@ -1,39 +1,60 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImagePlus, Timer } from 'lucide-react';
+import { ImagePlus, Pause, Timer } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
 import { useCountdown } from '@/lib/client/clock';
 import type { ImageInfo, PostStatus } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
 import { Badge, Spinner } from './ui/primitives';
 
-export function StatusBadge({ status, mine }: { status: PostStatus; mine?: boolean }) {
+/** clientChecking: the holder's checking info waits for the Client (countdown stopped). */
+export function StatusBadge({ status, mine, clientChecking }: { status: PostStatus; mine?: boolean; clientChecking?: boolean }) {
   switch (status) {
     case 'REQUESTED':
       return <Badge tone="amber">Requested</Badge>;
     case 'PUBLISHED':
       return <Badge tone="mint">Published</Badge>;
     case 'PROGRESSING':
+      if (clientChecking) return <Badge tone="amber">Client Checking</Badge>;
       return <Badge tone="purple">{mine ? 'Your hold' : 'In progress'}</Badge>;
     case 'COMPLETED':
       return <Badge tone="slate">Completed</Badge>;
   }
 }
 
+/** paused: the checking info waits for the Client ("Client Checking" status), so time is stopped. */
 export function Countdown({
   expiresAt,
   onDone,
   className,
   big,
+  paused,
 }: {
   expiresAt: string | null;
   onDone?: () => void;
   className?: string;
   big?: boolean;
+  paused?: boolean;
 }) {
-  const { label, ms } = useCountdown(expiresAt, onDone);
+  const { label, ms } = useCountdown(paused ? null : expiresAt, paused ? undefined : onDone);
   const urgent = ms > 0 && ms < 60_000;
+  if (paused) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-lg border border-state-warn/50 bg-state-warn/10 font-semibold text-state-warn',
+          big ? 'px-3 py-1.5 text-sm' : 'px-2 py-0.5 text-xs',
+          className,
+        )}
+        aria-label="Countdown paused while the client checks"
+        title="The client is checking the info. The countdown is stopped until they review it."
+      >
+        <Pause className={big ? 'size-4' : 'size-3.5'} />
+        Paused
+      </span>
+    );
+  }
   return (
     <span
       className={cn(
@@ -50,23 +71,32 @@ export function Countdown({
   );
 }
 
-const palettes = [
-  'from-[#1d2b64] via-[#3b2f8f] to-[#4de3b4]',
-  'from-[#0f2027] via-[#2c5364] to-[#8a7dff]',
-  'from-[#41295a] via-[#2F0743] to-[#4de3b4]',
-  'from-[#134e5e] via-[#1b2651] to-[#8a7dff]',
+const tints = [
+  'bg-brand-mint/10 text-brand-mint',
+  'bg-brand-purple/10 text-brand-purple',
+  'bg-state-warn/10 text-state-warn',
+  'bg-bg-elev text-ink-mid',
 ];
 
+/** Uploaded image, or a flat cover showing the listing number (e.g. "#1042") or initials. */
 export function PostImage({ image, title, className }: { image: ImageInfo | null; title: string; className?: string }) {
   if (image?.url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={image.url} alt={title} className={cn('size-full object-cover', className)} />;
   }
-  const p = palettes[[...title].reduce((a, c) => a + c.charCodeAt(0), 0) % palettes.length];
+  const tint = tints[[...title].reduce((a, c) => a + c.charCodeAt(0), 0) % tints.length];
+  const number = /#\s?(\d{2,})/.exec(title)?.[1];
+  const mark = number
+    ? `#${number}`
+    : title
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0]!.toUpperCase())
+        .join('');
   return (
-    <div className={cn('relative flex size-full items-end overflow-hidden bg-gradient-to-br p-3', p, className)}>
-      <div className="absolute -right-6 -top-6 size-24 rounded-full bg-white/10 blur-xl" />
-      <span className="relative line-clamp-2 text-xs font-semibold text-white/80">{title}</span>
+    <div className={cn('flex size-full items-center justify-center [container-type:inline-size]', tint, className)} aria-hidden="true">
+      <span className="font-mono text-[clamp(0.7rem,16cqw,2rem)] font-semibold tracking-tight">{mark}</span>
     </div>
   );
 }

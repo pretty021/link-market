@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check as CheckIcon, Download, ExternalLink, FileText, Lock, Paperclip, Send, Smile, X } from 'lucide-react';
+import { ArrowLeft, Check as CheckIcon, ChevronDown, Download, ExternalLink, FileText, Lock, Paperclip, Send, Smile, X } from 'lucide-react';
 import { Countdown, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useRoom, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
@@ -74,12 +74,65 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
   useOnReconnect(load);
   useRoom('conversation', conversationId);
 
+  // Messages from others that arrived while the user was scrolled up or the tab was hidden.
+  // They stay unread (server-side too) until the user is back at the bottom of a visible tab.
+  const [atBottom, setAtBottom] = useState(true);
+  const [unseen, setUnseen] = useState(0);
+  const pendingRead = useRef(false);
+
+  const isNearBottom = () => {
+    const el = scroller.current;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
+  const flushRead = useCallback(() => {
+    setUnseen(0);
+    if (pendingRead.current && isParticipant) {
+      pendingRead.current = false;
+      markRead();
+    }
+  }, [isParticipant, markRead]);
+
+  function onScroll() {
+    const bottom = isNearBottom();
+    setAtBottom(bottom);
+    if (bottom && !document.hidden) flushRead();
+  }
+
+  function scrollToBottom() {
+    const el = scroller.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    flushRead();
+  }
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden && isNearBottom()) flushRead();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [flushRead]);
+
   useSocketEvent<{ message: Message }>('message:new', ({ message }) => {
     if (message.conversationId !== conversationId) return;
-    const el = scroller.current;
-    stickToBottom.current = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    const bottom = isNearBottom();
+    stickToBottom.current = bottom;
     setData((d) => (d && !d.messages.some((m) => m.id === message.id) ? { ...d, messages: [...d.messages, message] } : d));
-    if (isParticipant) markRead();
+    const fromOther = !!message.sender && message.sender.id !== me.id;
+    if (fromOther && (document.hidden || !bottom)) {
+      pendingRead.current = true;
+      if (!bottom) setUnseen((n) => n + 1);
+      // The server counts this open chat as "being viewed", so the bell stays quiet; alert the browser instead.
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        const n = new Notification(`New message from ${message.sender!.name}`, {
+          body: message.attachment ? `Sent a file: ${message.attachment.name}` : (message.body ?? '').slice(0, 140),
+          tag: `msg:${message.id}`,
+        });
+        n.onclick = () => window.focus();
+      }
+    } else if (isParticipant) {
+      markRead();
+    }
     // CHECK_REQUEST / SYSTEM messages change what the composer allows (TEXT and FILE do not).
     if (message.type !== 'TEXT' && message.type !== 'FILE') void load();
   });
@@ -156,11 +209,12 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
             {post && ` · ${post.title} · ${formatPrice(post.price)}`}
           </p>
         </div>
-        {post && <StatusBadge status={post.status} />}
-        {progressing && <Countdown expiresAt={post!.progressingExpiresAt} onDone={() => void load()} big />}
+        {post && <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />}
+        {progressing && <Countdown expiresAt={post!.progressingExpiresAt} paused={!!post!.progressingPausedAt} onDone={() => void load()} big />}
       </div>
 
-      <div ref={scroller} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {data.nextCursor && (
           <div className="flex justify-center">
             <Button size="sm" variant="ghost" onClick={loadMore} loading={loadingMore}>Load earlier messages</Button>
@@ -186,13 +240,14 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
                   message={m}
                   canReview={!!data.deal?.isClient && !adminView && progressing}
                   expiresAt={post?.progressingExpiresAt ?? null}
+                  paused={!!post?.progressingPausedAt}
                   onReview={review}
                 />
               ) : (
                 <div
                   className={cn(
                     'max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm',
-                    mine ? 'rounded-br-md bg-brand-purple text-white' : 'rounded-bl-md bg-bg-elev text-ink-hi',
+                    mine ? 'rounded-br-md bg-primary text-on-primary' : 'rounded-bl-md bg-bg-elev text-ink-hi',
                   )}
                 >
                   {m.attachment && <AttachmentView file={m.attachment} mine={mine} />}
@@ -204,6 +259,23 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
         })}
       </div>
 
+      {!atBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          aria-label={unseen > 0 ? `Scroll to bottom, ${unseen} unread` : 'Scroll to bottom'}
+          className="absolute bottom-4 right-4 flex size-11 items-center justify-center rounded-full border border-line bg-bg-card text-ink-mid shadow-lift transition hover:text-ink-hi animate-in fade-in-0 zoom-in-90"
+        >
+          <ChevronDown className="size-5" />
+          {unseen > 0 && (
+            <span className="absolute -top-2.5 left-1/2 flex h-5 min-w-[20px] -translate-x-1/2 items-center justify-center rounded-full bg-brand-mint px-1.5 text-[11px] font-bold text-on-mint">
+              {unseen > 99 ? '99+' : unseen}
+            </span>
+          )}
+        </button>
+      )}
+      </div>
+
       <Composer
         conversationId={conversationId}
         readOnly={data.readOnly || !isParticipant}
@@ -211,6 +283,7 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
         post={post}
         onSent={(message) => {
           stickToBottom.current = true;
+          flushRead();
           setData((d) => (d && !d.messages.some((x) => x.id === message.id) ? { ...d, messages: [...d.messages, message] } : d));
         }}
         onResubmitted={() => void load()}
@@ -223,21 +296,36 @@ function formatSize(bytes: number) {
   return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** Images preview inline (click opens full size); other files show a download card. */
+/** Images preview inline (click opens full size) with a download bar; other files show a download card. */
 function AttachmentView({ file, mine }: { file: Attachment; mine: boolean }) {
   if (file.isImage) {
     return (
-      <a href={file.url} target="_blank" rel="noopener noreferrer" className="block">
-        {/* eslint-disable-next-line @next/next/no-img-element -- private, authenticated file URL */}
-        <img
-          src={file.url}
-          alt={file.name}
-          width={file.width ?? undefined}
-          height={file.height ?? undefined}
-          loading="lazy"
-          className="max-h-72 w-auto max-w-full rounded-xl object-contain"
-        />
-      </a>
+      <div className="space-y-1.5">
+        <a href={file.url} target="_blank" rel="noopener noreferrer" className="block" title="Open full size">
+          {/* eslint-disable-next-line @next/next/no-img-element -- private, authenticated file URL */}
+          <img
+            src={file.url}
+            alt={file.name}
+            width={file.width ?? undefined}
+            height={file.height ?? undefined}
+            loading="lazy"
+            className="max-h-72 w-auto max-w-full rounded-xl object-contain"
+          />
+        </a>
+        <a
+          href={`${file.url}?download=1`}
+          download={file.name}
+          className={cn(
+            'flex items-center gap-2 rounded-lg px-2 py-1 text-[11px] no-underline',
+            mine ? 'bg-white/10 hover:bg-white/20' : 'bg-bg-base/60 hover:bg-bg-base',
+          )}
+          aria-label={`Download ${file.name}`}
+        >
+          <span className="min-w-0 flex-1 truncate">{file.name}</span>
+          <span className="shrink-0 opacity-70">{formatSize(file.size)}</span>
+          <Download className="size-3.5 shrink-0" />
+        </a>
+      </div>
     );
   }
   return (
@@ -311,15 +399,19 @@ function CheckCard({
   message,
   canReview,
   expiresAt,
+  paused,
   onReview,
 }: {
   message: Message;
   canReview: boolean;
   expiresAt: string | null;
+  paused: boolean;
   onReview: (c: Check, a: 'checked' | 'not-checked') => Promise<void>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const { done } = useCountdown(expiresAt);
+  // While Client Checking the clock is stopped, so the old deadline never hides the review buttons.
+  const countdown = useCountdown(paused ? null : expiresAt);
+  const done = !paused && countdown.done;
   const check = message.check;
   const showButtons = canReview && check?.status === 'PENDING';
 
@@ -382,7 +474,10 @@ function Composer({
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { done } = useCountdown(post?.status === 'PROGRESSING' ? post.progressingExpiresAt : null);
+  const paused = !!post?.progressingPausedAt;
+  const countdown = useCountdown(post?.status === 'PROGRESSING' && !paused ? post.progressingExpiresAt : null);
+  // Client Checking: time is stopped, so the deal is not closed even if the old deadline passed.
+  const done = !paused && countdown.done;
 
   if (readOnly) {
     return (

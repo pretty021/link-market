@@ -56,6 +56,12 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
       data: { postId, customerId: customer.id, url, createdAt: now },
     });
 
+    // "Client Checking": the countdown stops until the Client reviews this submission.
+    await tx.$executeRaw`
+      UPDATE "Post" SET "progressingPausedAt" = ${DB_NOW}, "updatedAt" = ${DB_NOW}
+      WHERE id = ${postId}`;
+    pushPost(out, await tx.post.findUniqueOrThrow({ where: { id: postId }, include: postInclude }), now);
+
     const conv = await tx.conversation.upsert({
       where: { pairKey: `${postId}:${customer.id}` },
       create: { type: 'DEAL', postId, pairKey: `${postId}:${customer.id}` },
@@ -100,15 +106,16 @@ async function loadCheckForClient(client: UserActor, checkId: string) {
   return check;
 }
 
-/** Client clicks Checked: post PROGRESSING -> COMPLETED (only before the deadline), submission PENDING -> CHECKED. */
+/** Client clicks Checked: post PROGRESSING -> COMPLETED (while Client Checking, or before the deadline), submission PENDING -> CHECKED. */
 export async function markChecked(client: UserActor, checkId: string) {
   const check = await loadCheckForClient(client, checkId);
   const out = new Outbox();
   const result = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<{ id: string }[]>`
-      UPDATE "Post" SET status = 'COMPLETED', "completedAt" = ${DB_NOW}, "updatedAt" = ${DB_NOW}
+      UPDATE "Post" SET status = 'COMPLETED', "completedAt" = ${DB_NOW}, "progressingPausedAt" = NULL, "updatedAt" = ${DB_NOW}
       WHERE id = ${check.postId} AND status = 'PROGRESSING' AND "clientId" = ${client.id}
-        AND "holderId" = ${check.customerId} AND "progressingExpiresAt" > ${DB_NOW}
+        AND "holderId" = ${check.customerId}
+        AND ("progressingPausedAt" IS NOT NULL OR "progressingExpiresAt" > ${DB_NOW})
       RETURNING id`;
     if (rows.length === 0) {
       const p = await tx.post.findUniqueOrThrow({ where: { id: check.postId } });
@@ -154,7 +161,7 @@ export async function markChecked(client: UserActor, checkId: string) {
   return { conversationId: result.conversationId };
 }
 
-/** Client clicks Not checked: submission -> NOT_CHECKED; the post and its countdown are untouched. */
+/** Client clicks Not checked: submission -> NOT_CHECKED; the paused countdown restarts with a full 5 minutes. */
 export async function markNotChecked(client: UserActor, checkId: string) {
   const check = await loadCheckForClient(client, checkId);
   const out = new Outbox();
@@ -164,21 +171,28 @@ export async function markNotChecked(client: UserActor, checkId: string) {
       FROM "Post" p
       WHERE cs.id = ${checkId} AND cs.status = 'PENDING'
         AND p.id = cs."postId" AND p.status = 'PROGRESSING' AND p."clientId" = ${client.id}
-        AND p."holderId" = cs."customerId" AND p."progressingExpiresAt" > ${DB_NOW}
+        AND p."holderId" = cs."customerId"
+        AND (p."progressingPausedAt" IS NOT NULL OR p."progressingExpiresAt" > ${DB_NOW})
       RETURNING cs.id`;
     if (rows.length === 0) {
       const p = await tx.post.findUniqueOrThrow({ where: { id: check.postId } });
-      if (p.status === 'PROGRESSING' && p.progressingExpiresAt && p.progressingExpiresAt > (await dbNow(tx))) {
+      if (p.status === 'PROGRESSING' && (p.progressingPausedAt || (p.progressingExpiresAt && p.progressingExpiresAt > (await dbNow(tx))))) {
         throw conflict('CHECK_NOT_PENDING', 'This checking info was already reviewed.');
       }
       throw conflict('TIME_EXPIRED', 'Time expired.');
     }
 
+    // The countdown restarts: a fresh 5 minutes to send new checking info.
+    await tx.$executeRaw`
+      UPDATE "Post" SET "progressingPausedAt" = NULL, "progressingExpiresAt" = ${DB_NOW} + interval '5 minutes', "updatedAt" = ${DB_NOW}
+      WHERE id = ${check.postId}`;
+    pushPost(out, await tx.post.findUniqueOrThrow({ where: { id: check.postId }, include: postInclude }), await dbNow(tx));
+
     const conv = await tx.conversation.findUniqueOrThrow({ where: { pairKey: `${check.postId}:${check.customerId}` } });
     await addMessage(tx, out, {
       conversationId: conv.id,
       type: 'SYSTEM',
-      body: 'Not checked. Please submit new checking info before the countdown ends.',
+      body: 'Not checked. The countdown restarted: please submit new checking info within 5 minutes.',
     });
     await notify(tx, out, { userId: check.customerId }, {
       type: 'CHECK_NOT_CHECKED',

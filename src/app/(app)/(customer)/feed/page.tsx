@@ -78,7 +78,7 @@ export default function FeedPage() {
   return (
     <>
       <PageTitle
-        title={<>Today&apos;s <span className="text-gradient">account drops</span></>}
+        title="Latest listings"
         subtitle="New listings appear here the moment they are accepted."
         action={
           <Button asChild variant="purple">
@@ -101,8 +101,8 @@ export default function FeedPage() {
               <Card key={p.id} className="flex flex-col overflow-hidden transition hover:border-brand-mint/40">
                 <button onClick={() => setOpenId(p.id)} className="relative h-40 w-full overflow-hidden text-left" aria-label={`Open ${p.title}`}>
                   <PostImage image={p.image} title={p.title} />
-                  <div className="absolute left-3 top-3"><StatusBadge status={p.status} mine={mine} /></div>
-                  <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-bg-deep/70 px-2 py-0.5 text-[11px] text-ink-hi backdrop-blur">
+                  <div className="absolute left-3 top-3 rounded-md bg-bg-card shadow-soft"><StatusBadge status={p.status} mine={mine} clientChecking={mine && !!p.progressingPausedAt} /></div>
+                  <div className="absolute right-3 top-3 flex items-center gap-1 rounded-md bg-bg-card px-2 py-0.5 text-[11px] text-ink-mid shadow-soft">
                     <Eye className="size-3" /> {p.viewers} viewing
                   </div>
                 </button>
@@ -117,7 +117,7 @@ export default function FeedPage() {
                   </div>
                   <div className="mt-auto flex items-center justify-between gap-2 pt-1">
                     {p.status === 'PROGRESSING' ? (
-                      mine ? <Countdown expiresAt={p.progressingExpiresAt} onDone={() => void load()} /> : <span className="text-xs font-medium text-brand-purpleSoft">In progress</span>
+                      mine ? <Countdown expiresAt={p.progressingExpiresAt} paused={!!p.progressingPausedAt} onDone={() => void load()} /> : <span className="text-xs font-medium text-brand-purpleSoft">In progress</span>
                     ) : (
                       <span className="text-xs text-ink-lo">Available</span>
                     )}

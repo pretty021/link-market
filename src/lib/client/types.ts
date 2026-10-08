@@ -18,6 +18,8 @@ export type Post = {
   holderName: string | null;
   progressingAt: string | null;
   progressingExpiresAt: string | null;
+  /** Set while the Customer's checking info waits for the Client: the countdown is stopped ("Client Checking"). */
+  progressingPausedAt: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;

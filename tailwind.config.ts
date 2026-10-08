@@ -1,46 +1,52 @@
 import type { Config } from 'tailwindcss';
 
+// Colors are CSS variables (RGB channels) so every class works in both themes and keeps
+// opacity modifiers like bg-bg-card/80. Values live in globals.css (light default + dark).
+const v = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
-  darkMode: 'class',
+  darkMode: ['class', '[data-theme="dark"]'],
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
         bg: {
-          deep: '#0a1226',
-          base: '#0f1a33',
-          card: '#162041',
-          elev: '#1b2651',
+          deep: v('bg-deep'),
+          base: v('bg-base'),
+          card: v('bg-card'),
+          elev: v('bg-elev'),
         },
-        line: '#243160',
+        line: v('line'),
         ink: {
-          hi: '#eef2ff',
-          mid: '#b7c0e0',
-          lo: '#7f8ab0',
+          hi: v('ink-hi'),
+          mid: v('ink-mid'),
+          lo: v('ink-lo'),
         },
         brand: {
-          mint: '#4de3b4',
-          mintSoft: '#8bf0cf',
-          purple: '#8a7dff',
-          purpleSoft: '#b2a9ff',
+          mint: v('mint'),
+          mintSoft: v('mint-soft'),
+          purple: v('purple'),
+          purpleSoft: v('purple-soft'),
         },
+        'on-mint': v('on-mint'),
+        // Active/primary buttons: #108a00 in both themes.
+        primary: { DEFAULT: v('primary'), hover: v('primary-hover') },
+        'on-primary': v('on-primary'),
         state: {
-          ok: '#36d399',
-          warn: '#fbbf24',
-          err: '#f87171',
+          ok: v('ok'),
+          warn: v('warn'),
+          err: v('err'),
         },
       },
       boxShadow: {
-        glow: '0 0 0 1px rgba(77,227,180,0.18), 0 10px 30px -10px rgba(77,227,180,0.25)',
-        soft: '0 10px 30px -12px rgba(0,0,0,0.5)',
+        glow: 'none',
+        soft: '0 1px 2px rgb(var(--shadow) / var(--shadow-alpha)), 0 1px 1px rgb(var(--shadow) / calc(var(--shadow-alpha) / 2))',
+        lift: '0 12px 32px -12px rgb(var(--shadow) / calc(var(--shadow-alpha) * 2.5))',
       },
       backgroundImage: {
-        'grad-mint': 'linear-gradient(135deg,#4de3b4 0%,#2bb98d 100%)',
-        'grad-purple': 'linear-gradient(135deg,#8a7dff 0%,#5d4fe0 100%)',
-        'grad-hero': 'radial-gradient(1200px 500px at 10% -10%, rgba(138,125,255,0.25), transparent 60%), radial-gradient(900px 500px at 100% 0%, rgba(77,227,180,0.18), transparent 55%), linear-gradient(180deg,#0a1226 0%,#0b1a3a 100%)',
-      },
-      borderRadius: {
-        xl2: '1.25rem',
+        // Kept as flat fills: the redesign uses no gradients.
+        'grad-mint': 'linear-gradient(rgb(var(--mint)), rgb(var(--mint)))',
+        'grad-purple': 'linear-gradient(rgb(var(--purple)), rgb(var(--purple)))',
       },
     },
   },

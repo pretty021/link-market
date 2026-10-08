@@ -58,7 +58,7 @@ export function ConversationList({
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <p className="truncate text-xs text-ink-lo">{c.lastMessage?.body ?? 'No messages yet'}</p>
                   {c.unread > 0 && (
-                    <span className="flex min-w-[20px] shrink-0 items-center justify-center rounded-full bg-brand-mint px-1.5 text-[11px] font-bold text-bg-deep">
+                    <span className="flex min-w-[20px] shrink-0 items-center justify-center rounded-full bg-brand-mint px-1.5 text-[11px] font-bold text-on-mint">
                       {c.unread}
                     </span>
                   )}

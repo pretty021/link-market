@@ -155,6 +155,9 @@ model Post {
   holderId              String?
   holder                User?     @relation("PostHolder", fields: [holderId], references: [id])
   progressingAt         DateTime? // when the post became PROGRESSING
+  // Set while the Customer's checking info waits for the Client ("Client Checking"): the countdown is
+  // paused, expiry skips the post. Cleared on Not checked (fresh 5 minutes), Checked, cancel and expiry.
+  progressingPausedAt  DateTime?
   progressingExpiresAt  DateTime? // progressingAt + 5 minutes. Still PROGRESSING at this time -> back to PUBLISHED
   completedAt           DateTime? // when the Client clicked Checked (countdown stops)
 

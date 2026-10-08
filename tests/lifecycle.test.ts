@@ -22,7 +22,9 @@ async function setup() {
 describe('countdown expiry', () => {
   it('returns the post to PUBLISHED and lets another Customer confirm it', async () => {
     const { client, holder, other, post } = await setup();
+    // Submitted, then Not checked: the countdown runs again (a pending submission would pause it).
     const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/a');
+    await markNotChecked(client, check.id);
     await setExpiresIn(post.id, -10);
 
     expect(await expireDue()).toEqual([post.id]);
@@ -35,7 +37,7 @@ describe('countdown expiry', () => {
       progressingAt: null,
       progressingExpiresAt: null,
     });
-    expect((await prisma.checkSubmission.findUniqueOrThrow({ where: { id: check.id } })).status).toBe('EXPIRED');
+    expect((await prisma.checkSubmission.findUniqueOrThrow({ where: { id: check.id } })).status).toBe('NOT_CHECKED');
     expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(2);
 
     const notes = await prisma.notification.findMany({ where: { type: 'POST_EXPIRED', postId: post.id } });
@@ -137,14 +139,34 @@ describe('checking info', () => {
     expect((await getCart(holder)).items).toHaveLength(1);
   });
 
-  it('Not checked keeps the post PROGRESSING and does not restart the countdown', async () => {
+  it('submitting pauses the countdown (Client Checking): a pending submission never expires', async () => {
+    const { holder, post } = await setup();
+    await submitCheck(holder, post.id, 'https://example.com/1');
+    const paused = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
+    expect(paused.progressingPausedAt).not.toBeNull();
+
+    // Even far past the old deadline, the post stays held while the Client reviews.
+    await setExpiresIn(post.id, -60_000);
+    expect(await expireDue()).toEqual([]);
+    expect((await prisma.post.findUniqueOrThrow({ where: { id: post.id } })).status).toBe('PROGRESSING');
+  });
+
+  it('Not checked keeps the post PROGRESSING and restarts a full 5-minute countdown', async () => {
     const { client, holder, post } = await setup();
     const before = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
     const first = await submitCheck(holder, post.id, 'https://example.com/1');
+    await setExpiresIn(post.id, 20_000); // only 20 s were left when the Client reviewed
 
     await markNotChecked(client, first.check.id);
     expect(await prisma.notification.count({ where: { userId: holder.id, type: 'CHECK_NOT_CHECKED' } })).toBe(1);
     await expect(markNotChecked(client, first.check.id)).rejects.toMatchObject({ code: 'CHECK_NOT_PENDING' });
+
+    const resumed = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
+    const [{ now }] = await prisma.$queryRaw<{ now: Date }[]>`SELECT (clock_timestamp() AT TIME ZONE 'UTC') AS now`;
+    expect(resumed.progressingPausedAt).toBeNull();
+    const left = resumed.progressingExpiresAt!.getTime() - now.getTime();
+    expect(left).toBeGreaterThan(4.9 * 60_000);
+    expect(left).toBeLessThanOrEqual(5 * 60_000);
 
     const second = await submitCheck(holder, post.id, 'https://example.com/2');
     expect(second.conversationId).toBe(first.conversationId);
@@ -152,8 +174,8 @@ describe('checking info', () => {
 
     const after = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
     expect(after.status).toBe('PROGRESSING');
+    expect(after.progressingPausedAt).not.toBeNull(); // paused again for the new submission
     expect(after.progressingAt!.getTime()).toBe(before.progressingAt!.getTime());
-    expect(after.progressingExpiresAt!.getTime()).toBe(before.progressingExpiresAt!.getTime());
   });
 
   it('the Customer can send text in the deal chat only after Checked', async () => {

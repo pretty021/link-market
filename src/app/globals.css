@@ -2,8 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* Theme tokens as RGB channels (see tailwind.config.ts). Light is the default; the inline script
+   in app/layout.tsx sets data-theme before first paint from the saved choice.
+   Roles: mint = brand green (actions, "live"), purple = info blue (holds / in progress). */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-deep: 248 249 247;
+  --bg-base: 255 255 255;
+  --bg-card: 255 255 255;
+  --bg-elev: 242 244 241;
+  --line: 228 231 226;
+  --ink-hi: 17 24 19;
+  --ink-mid: 74 84 76;
+  --ink-lo: 117 126 119;
+  --mint: 16 138 0;
+  --mint-soft: 13 115 0;
+  --mint-deep: 16 138 0;
+  --purple: 29 78 216;
+  --purple-soft: 29 78 216;
+  --purple-deep: 29 78 216;
+  --on-mint: 255 255 255;
+  --primary: 16 138 0;
+  --primary-hover: 13 115 0;
+  --on-primary: 255 255 255;
+  --ok: 16 138 0;
+  --warn: 180 83 9;
+  --err: 220 38 38;
+  --shadow: 16 24 18;
+  --shadow-alpha: 0.06;
+  --scrollbar: 206 211 204;
+}
+
+[data-theme='dark'] {
   color-scheme: dark;
+  --bg-deep: 13 15 14;
+  --bg-base: 20 23 21;
+  --bg-card: 22 25 23;
+  --bg-elev: 31 35 32;
+  --line: 44 49 45;
+  --ink-hi: 238 241 238;
+  --ink-mid: 176 184 178;
+  --ink-lo: 124 133 126;
+  --mint: 98 212 74;
+  --mint-soft: 128 224 108;
+  --mint-deep: 98 212 74;
+  --purple: 110 160 255;
+  --purple-soft: 140 180 255;
+  --purple-deep: 110 160 255;
+  --on-mint: 10 20 8;
+  --primary: 16 138 0;
+  --primary-hover: 22 160 0;
+  --on-primary: 255 255 255;
+  --ok: 98 212 74;
+  --warn: 245 179 66;
+  --err: 248 113 113;
+  --shadow: 0 0 0;
+  --shadow-alpha: 0.4;
+  --scrollbar: 58 64 59;
 }
 
 @layer base {
@@ -12,28 +68,27 @@
     @apply bg-bg-deep text-ink-hi antialiased;
   }
   body {
-    background-image: radial-gradient(1100px 520px at 0% -10%, rgba(138, 125, 255, 0.16), transparent 60%),
-      radial-gradient(900px 480px at 100% -5%, rgba(77, 227, 180, 0.12), transparent 55%);
-    background-attachment: fixed;
     min-height: 100vh;
   }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
   ::selection {
-    @apply bg-brand-mint/30;
+    @apply bg-brand-mint/20;
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: #2a3768 transparent;
+    scrollbar-color: rgb(var(--scrollbar)) transparent;
   }
 }
 
 @layer components {
   .panel {
-    @apply rounded-2xl border border-line/80 bg-bg-card/80 shadow-soft backdrop-blur;
-  }
-  .text-gradient {
-    @apply bg-gradient-to-r from-brand-mint via-brand-mintSoft to-brand-purpleSoft bg-clip-text text-transparent;
+    @apply rounded-xl border border-line bg-bg-card shadow-soft;
   }
   .field {
-    @apply h-10 w-full rounded-xl border border-line bg-bg-base/80 px-3 text-sm text-ink-hi placeholder:text-ink-lo outline-none transition focus:border-brand-mint/70 focus:ring-2 focus:ring-brand-mint/20 disabled:opacity-50;
+    @apply h-10 w-full rounded-lg border border-line bg-bg-base px-3 text-sm text-ink-hi placeholder:text-ink-lo outline-none transition focus:border-brand-mint focus:ring-2 focus:ring-brand-mint/15 disabled:opacity-50;
   }
 }

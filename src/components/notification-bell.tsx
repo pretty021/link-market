@@ -83,7 +83,7 @@ export function NotificationBell() {
       <Menu.Trigger className="relative rounded-xl p-2 text-ink-mid hover:bg-bg-elev hover:text-ink-hi" aria-label={`Notifications (${count} unread)`}>
         <Bell className="size-5" />
         {count > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full bg-brand-purple px-1 text-[10px] font-bold text-white">
+          <span className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full bg-state-err px-1 text-[10px] font-bold text-white">
             {count > 99 ? '99+' : count}
           </span>
         )}

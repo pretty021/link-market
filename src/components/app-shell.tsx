@@ -11,6 +11,7 @@ import type { Me, Post } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
 import { Avatar } from './ui/primitives';
 import { Logo } from './logo';
+import { ThemeToggle } from './theme-toggle';
 import { NotificationBell } from './notification-bell';
 import { RealtimeProvider, useSocket, useSocketEvent } from './providers/realtime';
 import { SessionProvider, useMe } from './providers/session';
@@ -52,7 +53,7 @@ function CartButton() {
     <Link href="/cart" className="relative rounded-xl p-2 text-ink-mid hover:bg-bg-elev hover:text-ink-hi" aria-label="Cart">
       <ShoppingCart className="size-5" />
       {!!count && (
-        <span className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full bg-brand-mint px-1 text-[10px] font-bold text-bg-deep">
+        <span className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full bg-brand-mint px-1 text-[10px] font-bold text-on-mint">
           {count}
         </span>
       )}
@@ -157,7 +158,7 @@ function Header() {
   const active = (href: string) => pathname === href || (href !== homePath(me) && pathname.startsWith(href + '/'));
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/70 bg-bg-deep/85 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line bg-bg-card">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <Logo href={homePath(me)} />
         <nav className="ml-4 hidden items-center gap-1 lg:flex">
@@ -166,8 +167,8 @@ function Header() {
               key={i.href}
               href={i.href}
               className={cn(
-                'rounded-lg px-3 py-2 text-sm font-medium transition',
-                active(i.href) ? 'bg-bg-elev text-ink-hi' : 'text-ink-mid hover:text-ink-hi',
+                'rounded-full px-3.5 py-1.5 text-sm font-medium transition',
+                active(i.href) ? 'bg-primary text-on-primary' : 'text-ink-mid hover:text-ink-hi',
               )}
             >
               {i.label}
@@ -176,6 +177,7 @@ function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
           <ConnectionDot />
+          <ThemeToggle />
           <NotificationBell />
           {me.kind === 'user' && me.role === 'CUSTOMER' && <CartButton />}
           <UserMenu />
@@ -187,8 +189,8 @@ function Header() {
             key={i.href}
             href={i.href}
             className={cn(
-              'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium',
-              active(i.href) ? 'bg-bg-elev text-ink-hi' : 'text-ink-mid',
+              'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium',
+              active(i.href) ? 'bg-primary text-on-primary' : 'text-ink-mid',
             )}
           >
             {i.label}

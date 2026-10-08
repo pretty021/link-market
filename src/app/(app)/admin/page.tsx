@@ -17,8 +17,7 @@ type Stats = { clientsOnline: number; clientsTotal: number; customersOnline: num
 function StatCard({ icon, label, value, total, tone }: { icon: React.ReactNode; label: string; value: number; total?: number; tone: 'mint' | 'purple' }) {
   return (
     <Card className="relative overflow-hidden p-5">
-      <div className={`absolute -right-8 -top-8 size-28 rounded-full blur-2xl ${tone === 'mint' ? 'bg-brand-mint/20' : 'bg-brand-purple/25'}`} />
-      <div className={`relative mb-3 flex size-10 items-center justify-center rounded-xl ${tone === 'mint' ? 'bg-grad-mint text-bg-deep' : 'bg-grad-purple text-white'}`}>{icon}</div>
+      <div className={`relative mb-3 flex size-10 items-center justify-center rounded-xl ${tone === 'mint' ? 'bg-brand-mint/10 text-brand-mint' : 'bg-brand-purple/10 text-brand-purple'}`}>{icon}</div>
       <p className="relative text-xs text-ink-lo">{label}</p>
       <p className="relative mt-1 text-3xl font-bold tabular-nums">
         {value}

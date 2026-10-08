@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CircleCheck, FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
+import { FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
@@ -96,7 +96,7 @@ export default function ClientDashboard() {
   return (
     <>
       <PageTitle
-        title={<>Hello, <span className="text-gradient">{me.kind === 'user' ? me.name : ''}</span></>}
+        title={`Hello, ${me.kind === 'user' ? me.name : ''}`}
         subtitle={me.kind === 'user' ? `s_counts: ${me.s_counts ?? 0}` : undefined}
         action={
           <div className="flex gap-2">
@@ -129,9 +129,9 @@ export default function ClientDashboard() {
                       <span className="font-bold">{formatPrice(p.price)}</span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-mid">
-                      <StatusBadge status={p.status} />
+                      <StatusBadge status={p.status} clientChecking={!!p.progressingPausedAt} />
                       {p.approval ? (
-                        <Badge tone="mint"><CircleCheck className="size-3" /> Accepted</Badge>
+                        <Badge tone="mint">Accepted</Badge>
                       ) : (
                         <Badge tone="amber">Awaiting admin</Badge>
                       )}
@@ -140,7 +140,7 @@ export default function ClientDashboard() {
                       {p.status === 'PROGRESSING' && (
                         <>
                           <span>· Held by {p.holderName}</span>
-                          <Countdown expiresAt={p.progressingExpiresAt} onDone={() => void loadPosts()} />
+                          <Countdown expiresAt={p.progressingExpiresAt} paused={!!p.progressingPausedAt} onDone={() => void loadPosts()} />
                         </>
                       )}
                       {p.status === 'COMPLETED' && p.holderName && <span>· Completed with {p.holderName}</span>}
@@ -170,7 +170,7 @@ export default function ClientDashboard() {
                         <p className="truncate text-xs text-ink-lo">{c.post?.title} · {timeAgo(c.lastMessageAt)}</p>
                       </div>
                       {c.unread > 0 && (
-                        <span className="flex min-w-[20px] items-center justify-center rounded-full bg-brand-mint px-1.5 text-[11px] font-bold text-bg-deep">{c.unread}</span>
+                        <span className="flex min-w-[20px] items-center justify-center rounded-full bg-brand-mint px-1.5 text-[11px] font-bold text-on-mint">{c.unread}</span>
                       )}
                     </button>
                   </li>

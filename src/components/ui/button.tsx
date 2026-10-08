@@ -5,15 +5,16 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-mint/50 disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-mint/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-card disabled:pointer-events-none disabled:opacity-45 [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
-        primary: 'bg-brand-mint text-bg-deep shadow-glow hover:bg-brand-mintSoft',
-        purple: 'border border-brand-purple/70 bg-brand-purple/10 text-brand-purpleSoft hover:bg-brand-purple/20',
-        outline: 'border border-line bg-bg-base/60 text-ink-hi hover:border-ink-lo/60 hover:bg-bg-elev',
+        primary: 'bg-primary text-on-primary hover:bg-primary-hover',
+        // Secondary action: green outline (kept the "purple" name so call sites don't change).
+        purple: 'border border-brand-mint/50 bg-transparent text-brand-mint hover:bg-brand-mint/10',
+        outline: 'border border-line bg-bg-card text-ink-hi hover:bg-bg-elev',
         ghost: 'text-ink-mid hover:bg-bg-elev hover:text-ink-hi',
-        danger: 'border border-state-err/50 bg-state-err/10 text-state-err hover:bg-state-err/20',
+        danger: 'border border-state-err/40 bg-transparent text-state-err hover:bg-state-err/10',
       },
       size: {
         sm: 'h-8 px-3 text-xs',
