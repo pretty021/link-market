@@ -2,7 +2,7 @@ node_modules
 .next
 .env
 .env*.local
-uploads
+/uploads/
 coverage
 *.log
 next-env.d.ts
