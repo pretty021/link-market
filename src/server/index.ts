@@ -152,7 +152,9 @@ async function main() {
     }
   }, EXPIRY_INTERVAL_MS);
 
-  server.listen(port, () => console.log(`> LinkMarket ready on http://localhost:${port} (${dev ? 'dev' : 'prod'})`));
+  // HOST=127.0.0.1 keeps the app private behind the reverse proxy (Caddy/Nginx); unset = all interfaces.
+  const host = process.env.HOST || undefined;
+  server.listen(port, host, () => console.log(`> LinkMarket ready on http://${host ?? "localhost"}:${port} (${dev ? "dev" : "prod"})`));
 }
 
 main().catch((err) => {
