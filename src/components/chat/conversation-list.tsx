@@ -53,7 +53,7 @@ export function ConversationList({
                 </div>
                 <div className="mt-0.5 flex items-center gap-1.5">
                   {c.type === 'DEAL' ? <Badge tone="purple">Deal</Badge> : <Badge tone="mint">Support</Badge>}
-                  {c.post && <span className="truncate text-xs text-ink-mid">{c.post.title}</span>}
+                  {c.post && <span className="truncate text-xs text-ink-mid">{c.post.name || c.post.title}</span>}
                 </div>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <p className="truncate text-xs text-ink-lo">{c.lastMessage?.body ?? 'No messages yet'}</p>

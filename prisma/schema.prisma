@@ -139,7 +139,9 @@ model Post {
   id       String     @id @default(cuid())
   clientId String
   client   User       @relation("PostClient", fields: [clientId], references: [id])
-  title    String                         // the one-line input from the request modal
+  title    String                         // the one-line input from the request modal (usually the account link)
+  name     String?                        // display name set by the Admin; shown instead of the title when present
+  visible  Boolean    @default(true)      // Admin can hide an accepted post from Customers (its Client still sees it)
   status   PostStatus @default(REQUESTED) // REQUESTED -> PUBLISHED -> PROGRESSING -> COMPLETED
   image    Json?                          // uploaded image info: { url, key, mimeType, size, width, height }; set by Admin
   connects Int        @default(0)         // set by Admin

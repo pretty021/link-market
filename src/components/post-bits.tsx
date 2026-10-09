@@ -9,6 +9,74 @@ import { cn } from '@/lib/utils';
 import { Badge, Spinner } from './ui/primitives';
 
 /** clientChecking: the holder's checking info waits for the Client (countdown stopped). */
+/** A safe http(s) URL for a post title like "http://linkedin.com/x" or "linkedin.com/x", else null. */
+export function postHref(title: string): string | null {
+  const t = title.trim();
+  const candidate = /^https?:\/\//i.test(t) ? t : /^[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(t) ? `https://${t}` : null;
+  if (!candidate) return null;
+  try {
+    const u = new URL(candidate);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Name shown for a post: the Admin's name, or the title when no name was set. */
+export const postLabel = (p: { name: string | null; title: string }) => p.name?.trim() || p.title;
+
+/**
+ * Post heading: the name, with the title underneath as a small link (new tab).
+ * Without a name, the title itself is the heading (still a link if it's a URL).
+ */
+export function PostTitle({
+  post,
+  className,
+  headingClassName,
+  onHeadingClick,
+}: {
+  post: { name: string | null; title: string };
+  className?: string;
+  headingClassName?: string;
+  onHeadingClick?: () => void;
+}) {
+  const href = postHref(post.title);
+  const hasName = !!post.name?.trim();
+  const link = (text: string, cls: string) =>
+    href ? (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        onClick={(e) => e.stopPropagation()}
+        className={cn('hover:underline [overflow-wrap:anywhere]', cls)}
+        title="Open link in a new tab"
+      >
+        {text}
+      </a>
+    ) : (
+      <span className={cn('[overflow-wrap:anywhere]', cls)}>{text}</span>
+    );
+
+  const heading = hasName ? post.name!.trim() : null;
+  return (
+    <div className={cn('min-w-0', className)}>
+      {heading ? (
+        onHeadingClick ? (
+          <button type="button" onClick={onHeadingClick} className={cn('line-clamp-2 text-left font-semibold hover:text-brand-mint', headingClassName)}>
+            {heading}
+          </button>
+        ) : (
+          <p className={cn('line-clamp-2 font-semibold', headingClassName)}>{heading}</p>
+        )
+      ) : (
+        link(post.title, cn('line-clamp-2 block font-semibold', headingClassName))
+      )}
+      {heading && link(post.title, 'mt-0.5 line-clamp-1 block text-xs text-brand-mint')}
+    </div>
+  );
+}
+
 export function StatusBadge({ status, mine, clientChecking }: { status: PostStatus; mine?: boolean; clientChecking?: boolean }) {
   switch (status) {
     case 'REQUESTED':

@@ -18,11 +18,11 @@ const wrap = 'mx-auto w-full max-w-6xl px-5 sm:px-8';
 /** Real numbers only: what is live right now and what has actually been completed. */
 async function loadPublicData() {
   const [live, completed, sellers, latest] = await Promise.all([
-    prisma.post.count({ where: { approval: true, status: { in: ['PUBLISHED', 'PROGRESSING'] } } }),
+    prisma.post.count({ where: { approval: true, visible: true, status: { in: ['PUBLISHED', 'PROGRESSING'] } } }),
     prisma.post.count({ where: { status: 'COMPLETED' } }),
     prisma.user.count({ where: { role: 'CLIENT', deletedAt: null, isBlocked: false } }),
     prisma.post.findMany({
-      where: { approval: true, status: { in: ['PUBLISHED', 'PROGRESSING'] } },
+      where: { approval: true, visible: true, status: { in: ['PUBLISHED', 'PROGRESSING'] } },
       include: { client: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 6,
@@ -151,7 +151,7 @@ export default async function Landing() {
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-line bg-bg-card px-3 py-1 text-xs font-medium text-ink-mid">
               <span className="size-1.5 rounded-full bg-brand-mint" />
-              {data.live > 0 ? `${data.live} listing${data.live === 1 ? '' : 's'} live now` : 'New accounts daily'}
+              {data.live > 0 ? `${data.live} listing${data.live === 1 ? '' : 's'} Available` : 'New accounts daily'}
             </p>
             <h1 className="mt-5 text-4xl font-bold leading-[1.1] sm:text-5xl lg:text-[3.4rem]">
               Reviewed accounts. Real sellers.
@@ -237,7 +237,7 @@ export default async function Landing() {
                       <PostImage image={p.image as ImageInfo | null} title={p.title} />
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
-                      <p className="line-clamp-2 font-semibold group-hover:text-brand-mint">{p.title}</p>
+                      <p className="line-clamp-2 font-semibold group-hover:text-brand-mint">{p.name || p.title}</p>
                       <p className="mt-1 text-xs text-ink-lo">
                         {p.client.name} · {p.connects} connects
                       </p>

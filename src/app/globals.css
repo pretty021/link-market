@@ -33,6 +33,11 @@
   --shadow: 15 23 42;
   --shadow-alpha: 0.06;
   --scrollbar: 203 210 220;
+  /* Brand mark */
+  --logo-bg: 232 241 252;
+  --logo-fg: 10 37 84;
+  --logo-ring: 10 102 194;
+  --logo-glow: 0;
 }
 
 [data-theme='dark'] {
@@ -61,6 +66,11 @@
   --shadow: 0 0 0;
   --shadow-alpha: 0.4;
   --scrollbar: 60 67 75;
+  /* Brand mark */
+  --logo-bg: 6 21 54;
+  --logo-fg: 255 255 255;
+  --logo-ring: 56 199 255;
+  --logo-glow: 1;
 }
 
 @layer base {

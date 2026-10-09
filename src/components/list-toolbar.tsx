@@ -73,7 +73,7 @@ const comparators: Record<SortKey, (a: Post, b: Post) => number> = {
   'price-desc': (a, b) => price(a, -1) - price(b, -1),
   'price-asc': (a, b) => price(a, 1) - price(b, 1),
   views: (a, b) => b.viewCount - a.viewCount,
-  title: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true }),
+  title: (a, b) => (a.name || a.title).localeCompare(b.name || b.title, undefined, { sensitivity: 'base', numeric: true }),
 };
 
 const statusWords: Record<Post['status'], string> = {
@@ -86,13 +86,13 @@ const statusWords: Record<Post['status'], string> = {
 function haystack(p: Post, field: SearchField) {
   switch (field) {
     case 'title':
-      return p.title.toLowerCase();
+      return `${p.name ?? ''} ${p.title}`.toLowerCase();
     case 'seller':
       return p.clientName.toLowerCase();
     case 'buyer':
       return (p.holderName ?? '').toLowerCase();
     default:
-      return [p.title, p.clientName, p.holderName ?? '', statusWords[p.status], p.price !== null ? p.price.toFixed(2) : '']
+      return [p.name ?? '', p.title, p.clientName, p.holderName ?? '', statusWords[p.status], p.price !== null ? p.price.toFixed(2) : '']
         .join(' ')
         .toLowerCase();
   }

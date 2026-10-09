@@ -58,6 +58,13 @@ export const adminUsersQuery = z.object({
 });
 
 export const adminPostUpdateSchema = z.object({
+  // Display name; an empty string clears it (the title is shown instead).
+  name: z
+    .string()
+    .trim()
+    .max(120, 'Name must be 120 characters or less.')
+    .transform((v) => (v === '' ? null : v))
+    .nullish(),
   image: imageSchema.nullish(),
   connects: z.coerce.number().int().min(0).max(1_000_000).optional(),
   price: z.coerce
@@ -68,7 +75,9 @@ export const adminPostUpdateSchema = z.object({
     .optional(),
 });
 
-export const acceptSchema = z.object({ note: z.string().trim().max(500).optional() });
+export const visibilitySchema = z.object({ visible: z.boolean() });
+
+export const acceptSchema =z.object({ note: z.string().trim().max(500).optional() });
 
 export const postStatusQuery = z.object({
   status: z.enum(['REQUESTED', 'PUBLISHED', 'PROGRESSING', 'COMPLETED']).optional(),

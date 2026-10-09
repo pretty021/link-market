@@ -29,6 +29,8 @@ export function toPostDTO(p: PostRow, opts: { staff: boolean }) {
   return {
     id: p.id,
     title: p.title,
+    name: p.name,
+    visible: p.visible,
     status: p.status,
     image: p.image as ImageInfo | null,
     connects: p.connects,
@@ -171,6 +173,7 @@ export async function confirmPost(customer: UserActor, postId: string) {
       WHERE id = ${postId}
         AND status = 'PUBLISHED'
         AND approval = true
+        AND visible = true
         AND "holderId" IS NULL
         AND EXISTS (SELECT 1 FROM "CartItem" WHERE "customerId" = ${customer.id} AND "postId" = ${postId})
       RETURNING id, "progressingExpiresAt", clock_timestamp() AS "serverNow"`,
@@ -179,7 +182,7 @@ export async function confirmPost(customer: UserActor, postId: string) {
   if (rows.length === 0) {
     const post = await prisma.post.findUnique({ where: { id: postId }, include: postInclude });
     const serverNow = await dbNow();
-    if (!post || !post.approval) throw notFound('Post');
+    if (!post || !post.approval || !post.visible) throw notFound('Post');
     const data = { post: toPostDTO(post, { staff: false }), serverNow };
     if (post.status === 'PUBLISHED') {
       const inCart = await prisma.cartItem.findUnique({
@@ -293,7 +296,7 @@ export async function acceptPost(admin: AdminActor, postId: string, note?: strin
     await notify(tx, out, { userId: post.clientId }, {
       type: 'POST_ACCEPTED',
       title: 'Post accepted',
-      body: `"${post.title}" is now live for customers.`,
+      body: `"${post.name || post.title}" is now live for customers.`,
       postId,
     });
     const serverNow = await dbNow(tx);
@@ -306,7 +309,7 @@ export async function acceptPost(admin: AdminActor, postId: string, note?: strin
 
 export async function updatePostByAdmin(
   postId: string,
-  data: { image?: ImageInfo | null; connects?: number; price?: number },
+  data: { image?: ImageInfo | null; connects?: number; price?: number; name?: string | null },
 ) {
   const before = await prisma.post.findUnique({ where: { id: postId } });
   if (!before) throw notFound('Post');
@@ -316,6 +319,7 @@ export async function updatePostByAdmin(
       ...(data.image !== undefined ? { image: data.image ?? Prisma.DbNull } : {}),
       ...(data.connects !== undefined ? { connects: data.connects } : {}),
       ...(data.price !== undefined ? { price: data.price } : {}),
+      ...(data.name !== undefined ? { name: data.name } : {}),
     },
     include: postInclude,
   });
@@ -328,6 +332,59 @@ export async function updatePostByAdmin(
   pushPost(out, post, serverNow);
   out.flush();
   return { post: toPostDTO(post, { staff: true }), serverNow };
+}
+
+/**
+ * Show or hide an accepted post for Customers (its Client always sees it). A post that is
+ * in progress can't be hidden mid-deal. Hiding takes it out of every cart.
+ */
+export async function setPostVisibility(postId: string, visible: boolean) {
+  const out = new Outbox();
+  const result = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      UPDATE "Post" SET visible = ${visible}, "updatedAt" = ${DB_NOW}
+      WHERE id = ${postId} AND approval = true AND status <> 'PROGRESSING'
+      RETURNING id`;
+    if (rows.length === 0) {
+      const p = await tx.post.findUnique({ where: { id: postId } });
+      if (!p) throw notFound('Post');
+      if (!p.approval) throw conflict('NOT_ACCEPTED', 'Accept the post first.');
+      throw conflict('IN_PROGRESS', 'A buyer is holding this post. Try again when the deal ends.');
+    }
+    const carted = visible
+      ? []
+      : await tx.cartItem.findMany({ where: { postId }, select: { customerId: true } });
+    if (!visible) await tx.cartItem.deleteMany({ where: { postId } });
+    const post = await loadPost(tx, postId);
+    const serverNow = await dbNow(tx);
+    pushPost(out, post, serverNow);
+    return { post, serverNow, carted: carted.map((c) => c.customerId) };
+  });
+  out.flush();
+  for (const customerId of result.carted) {
+    const out2 = new Outbox();
+    out2.push(rooms.user(customerId), 'cart:updated', await cartSnapshot(customerId));
+    out2.flush();
+  }
+  return { post: toPostDTO(result.post, { staff: true }), serverNow: result.serverNow };
+}
+
+/** Delete a post that is still a request (never shown to Customers). */
+export async function deleteRequestedPost(postId: string) {
+  const rows = await prisma.$queryRaw<{ id: string; clientId: string; image: unknown }[]>`
+    DELETE FROM "Post" WHERE id = ${postId} AND status = 'REQUESTED'
+    RETURNING id, "clientId", image`;
+  if (rows.length === 0) {
+    const p = await prisma.post.findUnique({ where: { id: postId } });
+    if (!p) throw notFound('Post');
+    throw conflict('NOT_REQUESTED', 'Only post requests can be deleted.');
+  }
+  const image = rows[0].image as ImageInfo | null;
+  if (image?.key) await deleteStoredImage(image.key).catch(() => undefined);
+  const out = new Outbox();
+  out.push([rooms.admins, rooms.user(rows[0].clientId)], 'post:deleted', { postId });
+  out.flush();
+  return { ok: true };
 }
 
 export async function listAdminPosts(status?: PostStatus) {
@@ -373,7 +430,7 @@ export async function listFeed(customer: UserActor) {
       // Live listings for everyone, plus the accounts this Customer completed (they stay the holder).
       where: {
         approval: true,
-        OR: [{ status: { in: ['PUBLISHED', 'PROGRESSING'] } }, { status: 'COMPLETED', holderId: customer.id }],
+        OR: [{ status: { in: ['PUBLISHED', 'PROGRESSING'] }, visible: true }, { status: 'COMPLETED', holderId: customer.id }],
       },
       include: postInclude,
       orderBy: { createdAt: 'desc' },
@@ -391,7 +448,7 @@ export async function getPostForCustomer(customer: UserActor, postId: string) {
   await expireDue([postId]);
   const post = await prisma.post.findUnique({ where: { id: postId }, include: postInclude });
   if (!post) throw notFound('Post');
-  const visible = (post.approval && customerVisible(post.status)) || post.holderId === customer.id;
+  const visible = (post.approval && post.visible && customerVisible(post.status)) || post.holderId === customer.id;
   if (!visible) throw notFound('Post');
 
   await prisma.$executeRaw`
@@ -430,7 +487,7 @@ export async function addToCart(customer: UserActor, postId: string) {
       SELECT ${customer.id}, ${postId}, ${DB_NOW}
       WHERE (SELECT COUNT(*) FROM "CartItem" WHERE "customerId" = ${customer.id})
               < (SELECT "cartLimit" FROM "User" WHERE id = ${customer.id})
-        AND EXISTS (SELECT 1 FROM "Post" WHERE id = ${postId} AND approval = true AND status = 'PUBLISHED')
+        AND EXISTS (SELECT 1 FROM "Post" WHERE id = ${postId} AND approval = true AND visible = true AND status = 'PUBLISHED')
       ON CONFLICT ("customerId", "postId") DO NOTHING
       RETURNING "postId"`;
     if (rows.length > 0) return true;
@@ -440,7 +497,7 @@ export async function addToCart(customer: UserActor, postId: string) {
     });
     if (existing) return false;
     const post = await tx.post.findUnique({ where: { id: postId } });
-    if (!post || !post.approval) throw notFound('Post');
+    if (!post || !post.approval || !post.visible) throw notFound('Post');
     if (post.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This post is already completed.');
     if (post.status !== 'PUBLISHED') {
       throw conflict('POST_UNAVAILABLE', 'Only published posts can be added to the cart.');

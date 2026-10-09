@@ -206,7 +206,7 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
           <p className="truncate font-semibold">{adminView ? conv.participants.map((p) => `${p.name} (${p.role.toLowerCase()})`).join(' · ') : conv.title}</p>
           <p className="truncate text-xs text-ink-lo">
             {typeLabel[conv.type]}
-            {post && ` · ${post.title} · ${formatPrice(post.price)}`}
+            {post && ` · ${post.name || post.title} · ${formatPrice(post.price)}`}
           </p>
         </div>
         {post && <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />}

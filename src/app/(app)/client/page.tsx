@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarCheck, FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { ListToolbar, STAFF_STATUS_OPTIONS, ToolbarPanelTitle, useListControls } from '@/components/list-toolbar';
-import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
+import { Countdown, PostImage, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
@@ -87,6 +87,7 @@ export default function ClientDashboard() {
     void loadPosts();
   });
   useSocketEvent<{ posts: Post[] }>('post:requested', ({ posts: created }) => created.forEach(upsert));
+  useSocketEvent<{ postId: string }>('post:deleted', ({ postId }) => setPosts((prev) => prev?.filter((p) => p.id !== postId) ?? prev));
   useSocketEvent('presence:update', () => void loadOnline());
   useSocketEvent('conversation:updated', () => void loadChats());
   useSocketEvent('notification:new', () => void loadChats());
@@ -134,7 +135,7 @@ export default function ClientDashboard() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="font-semibold">{p.title}</p>
+                      <PostTitle post={p} className="flex-1" />
                       <span className="font-bold">{formatPrice(p.price)}</span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-mid">
@@ -144,6 +145,7 @@ export default function ClientDashboard() {
                       ) : (
                         <Badge tone="amber">Awaiting admin</Badge>
                       )}
+                      {p.approval && !p.visible && <Badge tone="slate">Hidden</Badge>}
                       <span>{p.connects} connects</span>
                       <span>· {p.viewCount} views</span>
                       {p.status === 'PROGRESSING' && (
@@ -258,7 +260,7 @@ function TodaySales({ posts }: { posts: Post[] }) {
         <ul className="max-h-40 space-y-1.5 overflow-y-auto border-t border-line px-5 py-3 text-xs">
           {today.map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-3">
-              <span className="truncate text-ink-mid">{p.title}</span>
+              <span className="truncate text-ink-mid">{postLabel(p)}</span>
               <span className="shrink-0 font-semibold tabular-nums">{formatPrice(p.price)}</span>
             </li>
           ))}

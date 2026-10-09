@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Eye, Link2, MessageCircle, ShoppingCart, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { CUSTOMER_STATUS_OPTIONS, ListToolbar, useListControls } from '@/components/list-toolbar';
-import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
+import { Countdown, PostImage, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useRoom, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
@@ -22,7 +22,7 @@ export default function FeedPage() {
   const { me } = useMe();
   // Live listings for everyone, plus accounts this Customer completed (they stay the holder).
   const visible = (p: Post) =>
-    p.approval && (p.status === 'PUBLISHED' || p.status === 'PROGRESSING' || (p.status === 'COMPLETED' && p.holderId === me.id));
+    p.approval && (((p.status === 'PUBLISHED' || p.status === 'PROGRESSING') && p.visible) || (p.status === 'COMPLETED' && p.holderId === me.id));
   const toast = useToast();
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [cart, setCart] = useState<Set<string>>(new Set());
@@ -101,7 +101,7 @@ export default function FeedPage() {
         </button>
         <div className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-3">
-            <button onClick={() => setOpenId(p.id)} className="line-clamp-2 text-left font-semibold hover:text-brand-mint">{p.title}</button>
+            <PostTitle post={p} className="flex-1" onHeadingClick={() => setOpenId(p.id)} />
             <span className="shrink-0 text-lg font-bold">{formatPrice(p.price)}</span>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mid">
@@ -199,7 +199,8 @@ function PostDetail({ post, onClose }: { post: Post | null; onClose: () => void 
   return (
     <Dialog open={!!post} onOpenChange={(o) => !o && onClose()}>
       {post && (
-        <DialogContent title={post.title} description={`Seller: ${post.clientName}`} className="max-w-xl">
+        <DialogContent title={postLabel(post)} description={`Seller: ${post.clientName}`} className="max-w-xl">
+          {post.name && <PostTitle post={{ name: null, title: post.title }} headingClassName="text-sm font-normal text-brand-mint" className="-mt-2 mb-3" />}
           <div className="h-56 overflow-hidden rounded-xl">
             <PostImage image={post.image} title={post.title} />
           </div>

@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PageTitle } from '@/components/app-shell';
 import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
-import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
+import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
+import { useToast } from '@/components/providers/toast';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { Badge, Card, Empty, Spinner } from '@/components/ui/primitives';
-import { api } from '@/lib/client/api';
+import { api, ApiError } from '@/lib/client/api';
 import type { Post } from '@/lib/client/types';
-import { formatPrice } from '@/lib/utils';
+import { cn, formatPrice } from '@/lib/utils';
 
 export default function AdminPosts() {
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -24,6 +25,7 @@ export default function AdminPosts() {
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => upsert(post));
   useSocketEvent<{ post: Post }>('post:published', ({ post }) => upsert(post));
   useSocketEvent('post:expired', () => void load());
+  useSocketEvent<{ postId: string }>('post:deleted', ({ postId }) => setPosts((prev) => prev?.filter((x) => x.id !== postId) ?? prev));
   useSocketEvent<{ posts: Post[] }>('post:requested', ({ posts: created }) => created.forEach(upsert));
   useSocketEvent<{ postId: string; count: number }>('post:viewers', ({ postId, count }) =>
     setPosts((prev) => prev?.map((p) => (p.id === postId ? { ...p, viewers: count } : p)) ?? prev),
@@ -54,6 +56,7 @@ export default function AdminPosts() {
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Holder</th>
+                <th className="px-4 py-3 font-medium">Visible</th>
                 <th className="px-4 py-3 font-medium">Countdown</th>
                 <th className="px-4 py-3 text-right font-medium">Price</th>
                 <th className="px-4 py-3 text-right font-medium">Views</th>
@@ -66,7 +69,7 @@ export default function AdminPosts() {
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-14 shrink-0 overflow-hidden rounded-lg"><PostImage image={p.image} title={p.title} /></div>
                       <div className="min-w-0">
-                        <p className="max-w-[260px] truncate font-medium">{p.title}</p>
+                        <PostTitle post={p} className="max-w-[260px]" headingClassName="font-medium" />
                         <p className="text-xs text-ink-lo">{p.connects} connects</p>
                       </div>
                     </div>
@@ -79,6 +82,7 @@ export default function AdminPosts() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-ink-mid">{p.holderName ?? '-'}</td>
+                  <td className="px-4 py-3"><VisibilitySwitch post={p} onChange={upsert} /></td>
                   <td className="px-4 py-3">
                     {p.status === 'PROGRESSING' ? <Countdown expiresAt={p.progressingExpiresAt} paused={!!p.progressingPausedAt} onDone={() => void load()} /> : <span className="text-ink-lo">-</span>}
                   </td>
@@ -91,5 +95,44 @@ export default function AdminPosts() {
         )}
       </Card>
     </>
+  );
+}
+
+/** On/Off for accepted posts: Off hides the post from Customers (its Client still sees it). */
+function VisibilitySwitch({ post, onChange }: { post: Post; onChange: (p: Post) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  if (!post.approval) return <span className="text-ink-lo">-</span>;
+  const locked = post.status === 'PROGRESSING';
+
+  async function toggle() {
+    setBusy(true);
+    try {
+      const r = await api<{ post: Post }>(`/api/admin/posts/${post.id}/visibility`, { json: { visible: !post.visible } });
+      onChange(r.post);
+      toast({ title: r.post.visible ? 'Visible to customers' : 'Hidden from customers', tone: 'success' });
+    } catch (e) {
+      toast({ title: e instanceof ApiError ? e.message : 'Could not update.', tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={post.visible}
+      aria-label={post.visible ? 'Visible to customers. Click to hide.' : 'Hidden from customers. Click to show.'}
+      title={locked ? 'A buyer is holding it' : post.visible ? 'Click to hide from customers' : 'Click to show to customers'}
+      disabled={busy || locked}
+      onClick={toggle}
+      className="inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span className={cn('relative h-5 w-9 rounded-full transition-colors', post.visible ? 'bg-primary' : 'bg-line')}>
+        <span className={cn('absolute top-0.5 size-4 rounded-full bg-white shadow transition-all', post.visible ? 'left-[18px]' : 'left-0.5')} />
+      </span>
+      <span className={cn('text-xs font-semibold', post.visible ? 'text-brand-mint' : 'text-ink-lo')}>{post.visible ? 'On' : 'Off'}</span>
+    </button>
   );
 }

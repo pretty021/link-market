@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Inbox, Save, Timer, UserCheck, Users } from 'lucide-react';
+import { CheckCircle2, Inbox, Save, Timer, Trash2, UserCheck, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
-import { ImageUpload, PostImage } from '@/components/post-bits';
+import { ImageUpload, PostImage, PostTitle } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
@@ -55,9 +55,18 @@ export default function AdminDashboard() {
     void loadStats();
   });
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => {
-    if (post.status === 'REQUESTED') setRequests((prev) => prev?.map((p) => (p.id === post.id ? post : p)) ?? prev);
+    setRequests((prev) =>
+      prev ? (post.status === 'REQUESTED' ? prev.map((p) => (p.id === post.id ? post : p)) : prev.filter((p) => p.id !== post.id)) : prev,
+    );
     void loadStats();
   });
+  useSocketEvent<{ postId: string }>('post:deleted', ({ postId }) => {
+    setRequests((prev) => prev?.filter((p) => p.id !== postId) ?? prev);
+    void loadStats();
+  });
+
+  // The dashboard lists post requests only.
+  const pending = requests?.filter((p) => p.status === 'REQUESTED') ?? null;
 
   return (
     <>
@@ -70,15 +79,15 @@ export default function AdminDashboard() {
       </div>
 
       <Card>
-        <CardHeader title="Post requests" subtitle="Set price, save, accept." icon={<Inbox className="size-5" />} />
-        {requests === null ? (
+        <CardHeader title="Post requests" subtitle="Name, price, save, accept." icon={<Inbox className="size-5" />} />
+        {pending === null ? (
           <div className="flex justify-center py-12"><Spinner /></div>
-        ) : requests.length === 0 ? (
+        ) : pending.length === 0 ? (
           <Empty icon={<CheckCircle2 />} title="No pending requests" hint="New requests appear live." />
         ) : (
           <ul className="divide-y divide-line/50">
-            {requests.map((p) => (
-              <RequestRow key={p.id} post={p} onAccepted={() => setRequests((prev) => prev?.filter((x) => x.id !== p.id) ?? prev)} />
+            {pending.map((p) => (
+              <RequestRow key={p.id} post={p} onDone={() => setRequests((prev) => prev?.filter((x) => x.id !== p.id) ?? prev)} />
             ))}
           </ul>
         )}
@@ -87,8 +96,10 @@ export default function AdminDashboard() {
   );
 }
 
-function RequestRow({ post, onAccepted }: { post: Post; onAccepted: () => void }) {
+function RequestRow({ post, onDone }: { post: Post; onDone: () => void }) {
   const toast = useToast();
+  const [name, setName] = useState(post.name ?? '');
+  const [deleting, setDeleting] = useState(false);
   const [image, setImage] = useState<ImageInfo | null>(post.image);
   const [connects, setConnects] = useState(String(post.connects));
   const [price, setPrice] = useState(post.price !== null ? post.price.toFixed(2) : '');
@@ -97,6 +108,7 @@ function RequestRow({ post, onAccepted }: { post: Post; onAccepted: () => void }
   const [saved, setSaved] = useState(post);
 
   const dirty =
+    (name.trim() || null) !== (saved.name ?? null) ||
     (image?.key ?? null) !== (saved.image?.key ?? null) ||
     Number(connects) !== saved.connects ||
     (price === '' ? null : Math.round(Number(price) * 100) / 100) !== saved.price;
@@ -106,9 +118,10 @@ function RequestRow({ post, onAccepted }: { post: Post; onAccepted: () => void }
     try {
       const r = await api<{ post: Post }>(`/api/admin/posts/${post.id}`, {
         method: 'PATCH',
-        json: { image, connects: Number(connects || 0), ...(price !== '' ? { price: Number(price) } : {}) },
+        json: { name: name.trim(), image, connects: Number(connects || 0), ...(price !== '' ? { price: Number(price) } : {}) },
       });
       setSaved(r.post);
+      setName(r.post.name ?? '');
       setPrice(r.post.price !== null ? r.post.price.toFixed(2) : '');
       toast({ title: 'Saved', tone: 'success' });
     } catch (e) {
@@ -123,10 +136,23 @@ function RequestRow({ post, onAccepted }: { post: Post; onAccepted: () => void }
     try {
       await api(`/api/admin/posts/${post.id}/accept`, { method: 'POST', json: {} });
       toast({ title: 'Post accepted', body: 'It is now live in every customer feed.', tone: 'success' });
-      onAccepted();
+      onDone();
     } catch (e) {
       toast({ title: e instanceof ApiError ? e.message : 'Could not accept.', tone: 'error' });
       setAccepting(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Delete the request "${post.name || post.title}"? This can't be undone.`)) return;
+    setDeleting(true);
+    try {
+      await api(`/api/admin/posts/${post.id}`, { method: 'DELETE' });
+      toast({ title: 'Request deleted', tone: 'success' });
+      onDone();
+    } catch (e) {
+      toast({ title: e instanceof ApiError ? e.message : 'Could not delete.', tone: 'error' });
+      setDeleting(false);
     }
   }
 
@@ -137,12 +163,17 @@ function RequestRow({ post, onAccepted }: { post: Post; onAccepted: () => void }
           <PostImage image={image} title={post.title} />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold">{post.title}</p>
+          <PostTitle post={{ name: saved.name, title: post.title }} />
           <p className="mt-1 text-xs text-ink-lo">From {post.clientName} · {timeAgo(post.createdAt)}</p>
           <div className="mt-3"><ImageUpload value={image} onChange={setImage} /></div>
         </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">
+        <div className="w-48">
+          <Field label="Name" htmlFor={`n-${post.id}`}>
+            <Input id={`n-${post.id}`} maxLength={120} placeholder="e.g. Senior dev, 500+" value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+        </div>
         <div className="w-28">
           <Field label="Connects" htmlFor={`c-${post.id}`}>
             <Input id={`c-${post.id}`} type="number" min={0} step={1} value={connects} onChange={(e) => setConnects(e.target.value)} />
@@ -156,6 +187,9 @@ function RequestRow({ post, onAccepted }: { post: Post; onAccepted: () => void }
         <Button variant="outline" onClick={save} loading={saving} disabled={!dirty}><Save /> Save</Button>
         <Button onClick={accept} loading={accepting} disabled={dirty || saved.price === null} title={saved.price === null ? 'Save a price first' : dirty ? 'Save your changes first' : undefined}>
           <CheckCircle2 /> Accept
+        </Button>
+        <Button variant="danger" size="icon" className="size-10" onClick={remove} loading={deleting} aria-label="Delete request" title="Delete request">
+          {!deleting && <Trash2 />}
         </Button>
       </div>
     </li>

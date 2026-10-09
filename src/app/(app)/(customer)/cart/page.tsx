@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, Link2, MessageCircle, Send, ShoppingCart, Trash2, X } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
-import { Countdown, PostImage, StatusBadge } from '@/components/post-bits';
+import { Countdown, PostImage, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
@@ -51,7 +51,7 @@ export default function CartPage() {
   useSocketEvent<{ post: Post; formerHolderId: string; reason?: 'cancelled' }>('post:expired', ({ post, formerHolderId, reason }) => {
     if (formerHolderId === me.id) {
       if (dialogPostId === post.id) setDialogPostId(null);
-      if (reason !== 'cancelled') toast({ title: 'Time expired', body: `"${post.title}" is available again.`, tone: 'error' });
+      if (reason !== 'cancelled') toast({ title: 'Time expired', body: `"${postLabel(post)}" is available again.`, tone: 'error' });
     }
     void load();
   });
@@ -59,13 +59,13 @@ export default function CartPage() {
   const [cancelling, setCancelling] = useState<string | null>(null);
   async function cancelHold(item: Item) {
     const id = item.post.id;
-    if (cancelling || !window.confirm(`Cancel your hold on "${item.post.title}"? It becomes available to every customer again.`)) return;
+    if (cancelling || !window.confirm(`Cancel your hold on "${postLabel(item.post)}"? It becomes available to every customer again.`)) return;
     setCancelling(id);
     try {
       const r = await api<{ post: Post }>(`/api/posts/${id}/cancel`, { method: 'POST' });
       patchPost(r.post);
       if (dialogPostId === id) setDialogPostId(null);
-      toast({ title: 'Hold cancelled', body: `"${item.post.title}" is available again.` });
+      toast({ title: 'Hold cancelled', body: `"${postLabel(item.post)}" is available again.` });
       await load();
     } catch (e) {
       if (e instanceof ApiError && e.data?.post) patchPost(e.data.post as Post);
@@ -141,7 +141,7 @@ export default function CartPage() {
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <h3 className="font-semibold">{post.title}</h3>
+                    <PostTitle post={post} className="flex-1" />
                     <span className="text-xl font-bold">{formatPrice(post.price)}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mid">
@@ -239,7 +239,7 @@ function ConfirmDialog({
   return (
     <Dialog open={!!item} onOpenChange={(o) => !o && onClose()}>
       {item && (
-        <DialogContent title="On hold for you" description={item.post.title}>
+        <DialogContent title="On hold for you" description={postLabel(item.post)}>
           <div className="grid grid-cols-3 gap-3">
             <div className="rounded-xl border border-line bg-bg-base/60 p-3">
               <p className="text-[11px] text-ink-lo">Client</p>

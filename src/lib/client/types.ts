@@ -5,6 +5,10 @@ export type CheckStatus = 'PENDING' | 'CHECKED' | 'NOT_CHECKED' | 'EXPIRED';
 export type Post = {
   id: string;
   title: string;
+  /** Display name set by the Admin; shown instead of the title when present. */
+  name: string | null;
+  /** false = hidden from Customers by the Admin (the Client still sees it). */
+  visible: boolean;
   status: PostStatus;
   image: ImageInfo | null;
   connects: number;
