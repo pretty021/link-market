@@ -53,6 +53,8 @@ enum NotificationType {
   CHECK_NOT_CHECKED // to the Customer: the Client clicked Not checked
   POST_EXPIRED      // to the former holder and the Client: countdown ran out
   POST_ACCEPTED     // to the Client: Admin accepted the post
+  POST_REQUESTED    // to every Admin: a Client submitted one or more post requests
+  POST_DELETED      // to the Client: an Admin deleted their post request
   NEW_MESSAGE       // to a participant who is not looking at the chat
 }
 

@@ -40,7 +40,7 @@ const FIELD_LABELS: Record<SearchField, string> = {
 
 const FIELD_PLACEHOLDERS: Record<SearchField, string> = {
   all: 'Search…',
-  title: 'Account name…',
+  title: 'Link name…',
   seller: 'Seller name…',
   buyer: 'Buyer name…',
 };
@@ -109,6 +109,7 @@ export function useListControls(
   statusOptions: StatusOption[],
   defaultSort: SortKey = 'updated',
   fields: SearchField[] = ['all', 'title', 'seller', 'buyer'],
+  sortable = true,
 ) {
   const defaults: Saved = { q: '', field: 'all', status: statusOptions[0]!.value, sort: defaultSort };
   const [q, setQState] = useState(defaults.q);
@@ -162,11 +163,12 @@ export function useListControls(
     const searched = terms.length ? posts.filter((p) => terms.every((t) => haystack(p, field).includes(t))) : posts;
     const counts = Object.fromEntries(statusOptions.map((o) => [o.value, searched.filter(o.match).length]));
     const option = statusOptions.find((o) => o.value === status) ?? statusOptions[0]!;
-    const shown = searched.filter(option.match).sort(comparators[sort]);
+    const matched = searched.filter(option.match);
+    const shown = sortable ? matched.sort(comparators[sort]) : matched;
     return { shown, counts, total: posts.length };
   }
 
-  const isDefault = q.trim() === '' && field === defaults.field && status === defaults.status && sort === defaultSort;
+  const isDefault = q.trim() === '' && field === defaults.field && status === defaults.status && (!sortable || sort === defaultSort);
   const reset = () => {
     setQ('');
     setField(defaults.field);
@@ -174,7 +176,7 @@ export function useListControls(
     setSort(defaultSort);
   };
 
-  return { q, setQ, field, setField, fields, status, setStatus, sort, setSort, apply, isDefault, reset, statusOptions };
+  return { q, setQ, field, setField, fields, status, setStatus, sort, setSort, apply, isDefault, reset, statusOptions, sortable };
 }
 
 type Controls = ReturnType<typeof useListControls>;
@@ -210,6 +212,7 @@ export function ListToolbar({
   shown,
   total,
   layout = 'bar',
+  countStyle = 'text',
   className,
 }: {
   controls: Controls;
@@ -217,11 +220,15 @@ export function ListToolbar({
   shown: number;
   total: number;
   layout?: 'bar' | 'stack';
+  /** `badge` puts the live count in a chip on the search row. `text` keeps the "N total" line. */
+  countStyle?: 'text' | 'badge';
   className?: string;
 }) {
-  const { q, setQ, field, setField, fields, status, setStatus, sort, setSort, isDefault, reset, statusOptions } = controls;
+  const { q, setQ, field, setField, fields, status, setStatus, sort, setSort, isDefault, reset, statusOptions, sortable } = controls;
   const [draft, setDraft] = useState(q);
   const stack = layout === 'stack';
+  const showStatus = statusOptions.length > 1;
+  const showSort = sortable;
 
   // Debounce typing slightly; keep the box in sync when q is reset or restored.
   useEffect(() => setDraft(q), [q]);
@@ -232,10 +239,32 @@ export function ListToolbar({
   }, [draft, q, setQ]);
 
   const summary = useMemo(() => (shown === total ? `${total} total` : `${shown} of ${total}`), [shown, total]);
+  const filtered = shown !== total;
+  const empty = shown === 0;
+
+  const countBadge = (
+    <span
+      aria-live="polite"
+      title={filtered ? `${shown} of ${total} match` : `${total} in this list`}
+      className={cn(
+        'inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3',
+        empty ? 'border-state-err/30 bg-state-err/10' : filtered ? 'border-brand-purple/30 bg-brand-purple/10' : 'border-brand-mint/25 bg-brand-mint/10',
+      )}
+    >
+      <span className={cn('size-2 rounded-full', empty ? 'bg-state-err' : filtered ? 'bg-brand-purple' : 'bg-brand-mint')} />
+      <span className={cn('text-base font-bold tabular-nums leading-none', empty ? 'text-state-err' : filtered ? 'text-brand-purple' : 'text-brand-mint')}>
+        {shown}
+      </span>
+      <span className="flex flex-col leading-none">
+        {filtered && <span className="text-[10px] font-semibold tabular-nums text-ink-lo">of {total}</span>}
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-mid">{filtered ? (shown === 1 ? 'match' : 'matches') : 'in queue'}</span>
+      </span>
+    </span>
+  );
 
   const search = (
     <Group label="Search" className={stack ? undefined : 'flex-1'}>
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         {fields.length > 1 && (
           <label className={cn('relative shrink-0', stack ? 'w-28' : 'w-32')}>
             <span className="sr-only">Search in</span>
@@ -270,6 +299,12 @@ export function ListToolbar({
             </button>
           )}
         </label>
+        {countStyle === 'badge' && countBadge}
+        {countStyle === 'badge' && !isDefault && (
+          <button type="button" onClick={reset} className="shrink-0 text-xs font-semibold text-brand-mint hover:underline">
+            Clear
+          </button>
+        )}
       </div>
     </Group>
   );
@@ -329,8 +364,8 @@ export function ListToolbar({
     return (
       <div className={cn('space-y-4', className)}>
         {search}
-        {statusGroup}
-        {sortGroup}
+        {showStatus && statusGroup}
+        {showSort && sortGroup}
         <div className="flex justify-between border-t border-line pt-3">{footer}</div>
       </div>
     );
@@ -339,13 +374,22 @@ export function ListToolbar({
   return (
     <div className={cn('space-y-3', className)}>
       {search}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:gap-8">
-          {statusGroup}
-          {sortGroup}
+      {countStyle === 'text' && (showStatus || showSort) && (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-8">
+            {showStatus && statusGroup}
+            {showSort && sortGroup}
+          </div>
+          {footer}
         </div>
-        {footer}
-      </div>
+      )}
+      {countStyle === 'text' && !(showStatus || showSort) && footer}
+      {countStyle === 'badge' && (showStatus || showSort) && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-8">
+          {showStatus && statusGroup}
+          {showSort && sortGroup}
+        </div>
+      )}
     </div>
   );
 }

@@ -22,7 +22,7 @@ export async function getCheck(actor: Actor, checkId: string) {
 
 export async function listChecksForPost(actor: Actor, postId: string) {
   const post = await prisma.post.findUnique({ where: { id: postId } });
-  if (!post) throw notFound('Post');
+  if (!post) throw notFound('Link');
   if (!canSeeChecks(actor, post)) throw forbidden();
   const checks = await prisma.checkSubmission.findMany({ where: { postId }, orderBy: { createdAt: 'desc' } });
   return checks.map(toCheckDTO);
@@ -44,7 +44,7 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
         AND "progressingExpiresAt" > ${DB_NOW}
       FOR UPDATE`;
     if (locked.length === 0) {
-      throw conflict('NOT_HOLDER', 'You are not progressing this post, or the time has expired.');
+      throw conflict('NOT_HOLDER', 'You are not progressing this link, or the time has expired.');
     }
     const post = locked[0];
 
@@ -102,7 +102,7 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
 async function loadCheckForClient(client: UserActor, checkId: string) {
   const check = await prisma.checkSubmission.findUnique({ where: { id: checkId }, include: { post: true } });
   if (!check) throw notFound('Check');
-  if (check.post.clientId !== client.id) throw forbidden('Only the post owner can review checking info.');
+  if (check.post.clientId !== client.id) throw forbidden('Only the link owner can review checking info.');
   return check;
 }
 
@@ -119,7 +119,7 @@ export async function markChecked(client: UserActor, checkId: string) {
       RETURNING id`;
     if (rows.length === 0) {
       const p = await tx.post.findUniqueOrThrow({ where: { id: check.postId } });
-      if (p.status === 'COMPLETED') throw conflict('ALREADY_COMPLETED', 'This post is already completed.');
+      if (p.status === 'COMPLETED') throw conflict('ALREADY_COMPLETED', 'This link is already completed.');
       throw conflict('TIME_EXPIRED', 'Time expired.');
     }
 

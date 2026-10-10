@@ -20,10 +20,10 @@ export function LogoMark({ className }: { className?: string }) {
         strokeWidth="2.2"
         style={{ filter: 'drop-shadow(0 0 calc(var(--logo-glow) * 2.5px) rgb(var(--logo-ring)))' }}
       />
-      <text x="32" y="23.6" textAnchor="middle" fontSize="14" fontWeight="700" fill="rgb(var(--logo-fg))" fontFamily="inherit" letterSpacing="-0.3">
+      <text x="31.6" y="23.45" textAnchor="middle" fontSize="13.2" fontWeight="700" fill="rgb(var(--logo-fg))" fontFamily="inherit" letterSpacing="-0.2">
         link
       </text>
-      <text x="32" y="55" textAnchor="middle" fontSize="27" fontWeight="800" fill="rgb(var(--logo-fg))" fontFamily="inherit" letterSpacing="-1">
+      <text x="31.55" y="56.05" textAnchor="middle" fontSize="26" fontWeight="800" fill="rgb(var(--logo-fg))" fontFamily="inherit" letterSpacing="-0.7">
         in
       </text>
     </svg>
@@ -31,13 +31,13 @@ export function LogoMark({ className }: { className?: string }) {
 }
 
 /**
- * The mark already says "link" and "in", so only "on" sits beside it: together they read in·on·link.
- * Brand blue, heavy weight, sized to the mark's height. Follows the theme via --mint.
+ * The mark already says "link" and "in", so only "On" sits beside it: together they read in·On·link.
+ * Brand blue, heavy weight, sized to the mark. The slight upward shift centers the cap height on the tile.
  */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span aria-hidden="true" className={cn('text-[1.6rem] font-extrabold leading-none tracking-[-0.04em] text-brand-mint', className)}>
-      on
+    <span aria-hidden="true" className={cn('translate-y-[-0.03em] text-[1.6rem] font-extrabold leading-none tracking-[-0.045em] text-brand-mint', className)}>
+      On
     </span>
   );
 }

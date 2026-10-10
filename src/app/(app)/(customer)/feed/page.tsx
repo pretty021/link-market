@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Eye, Link2, MessageCircle, ShoppingCart, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { CUSTOMER_STATUS_OPTIONS, ListToolbar, useListControls } from '@/components/list-toolbar';
-import { Countdown, PostImage, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
+import { Countdown, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useRoom, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
@@ -50,7 +50,7 @@ export default function FeedPage() {
 
   useSocketEvent<{ post: Post }>('post:published', ({ post }) => {
     upsert(post);
-    toast({ title: 'New listing', body: post.title, tone: 'success' });
+    toast({ title: 'New link', body: post.title, tone: 'success' });
   });
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => upsert(post));
   useSocketEvent<{ postId: string; count: number }>('post:viewers', ({ postId, count }) =>
@@ -81,66 +81,23 @@ export default function FeedPage() {
   const alive = view.shown?.filter((p) => p.status !== 'COMPLETED') ?? [];
   const completed = view.shown?.filter((p) => p.status === 'COMPLETED') ?? [];
 
-  const renderCard = (p: Post) => {
-    const mine = p.holderId === me.id;
-    const inCart = cart.has(p.id);
-    const done = p.status === 'COMPLETED';
-    return (
-      <Card
-        key={p.id}
-        className={cn('flex flex-col overflow-hidden transition', done ? 'border-state-err/25 bg-state-err/[0.06]' : 'hover:border-brand-mint/40')}
-      >
-        <button onClick={() => setOpenId(p.id)} className="relative h-36 w-full overflow-hidden text-left" aria-label={`Open ${p.title}`}>
-          <PostImage image={p.image} title={p.title} className={done ? 'opacity-80' : undefined} />
-          <div className="absolute left-3 top-3 flex overflow-hidden rounded-md bg-bg-card shadow-soft"><StatusBadge status={p.status} mine={mine} clientChecking={mine && !!p.progressingPausedAt} /></div>
-          {!done && (
-            <div className="absolute right-3 top-3 flex items-center gap-1 rounded-md bg-bg-card px-2 py-0.5 text-[11px] text-ink-mid shadow-soft">
-              <Eye className="size-3" /> {p.viewers} viewing
-            </div>
-          )}
-        </button>
-        <div className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <PostTitle post={p} className="flex-1" onHeadingClick={() => setOpenId(p.id)} />
-            <span className="shrink-0 text-lg font-bold">{formatPrice(p.price)}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mid">
-            <span className="flex items-center gap-1"><Link2 className="size-3.5" /> {p.connects} connects</span>
-            <span className="flex items-center gap-1"><Users className="size-3.5" /> Seller: {p.clientName}</span>
-          </div>
-          <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-            {done ? (
-              <span className="text-xs font-medium text-state-err">Bought</span>
-            ) : p.status === 'PROGRESSING' ? (
-              mine ? <Countdown expiresAt={p.progressingExpiresAt} paused={!!p.progressingPausedAt} onDone={() => void load()} /> : <span className="text-xs font-medium text-brand-purpleSoft">In progress</span>
-            ) : (
-              <span className="text-xs text-ink-lo">Available</span>
-            )}
-            {done ? (
-              <Button asChild size="sm" variant="outline"><Link href="/chat"><MessageCircle /> Messages</Link></Button>
-            ) : mine ? (
-              <Button asChild size="sm" variant="purple"><Link href="/cart">Open in cart</Link></Button>
-            ) : (
-              <Button
-                size="sm"
-                variant={inCart ? 'outline' : 'primary'}
-                loading={busy === p.id}
-                disabled={!inCart && p.status !== 'PUBLISHED'}
-                onClick={() => toggleCart(p)}
-              >
-                <ShoppingCart /> {inCart ? 'Remove cart' : 'Cart'}
-              </Button>
-            )}
-          </div>
-        </div>
-      </Card>
-    );
-  };
+  const renderCard = (p: Post) => (
+    <LinkCard
+      key={p.id}
+      post={p}
+      mine={p.holderId === me.id}
+      inCart={cart.has(p.id)}
+      busy={busy === p.id}
+      onOpen={() => setOpenId(p.id)}
+      onToggleCart={() => void toggleCart(p)}
+      onExpired={() => void load()}
+    />
+  );
 
   return (
     <>
       <PageTitle
-        title="Latest Accounts"
+        title="Latest Links"
         subtitle="Reviewed. Updated live."
         action={
           <Button asChild variant="purple">
@@ -164,9 +121,9 @@ export default function FeedPage() {
       ) : (
         <>
           {posts.length === 0 ? (
-            <Card><Empty icon={<Link2 />} title="No listings right now" hint="New ones appear live." /></Card>
+            <Card><Empty icon={<Link2 />} title="No links right now" hint="New ones appear live." /></Card>
           ) : alive.length === 0 && completed.length === 0 ? (
-            <Card><Empty icon={<Link2 />} title="No listings match" hint="Try other filters." /></Card>
+            <Card><Empty icon={<Link2 />} title="No links match" hint="Try other filters." /></Card>
           ) : (
             alive.length > 0 && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{alive.map(renderCard)}</div>
           )}
@@ -174,7 +131,7 @@ export default function FeedPage() {
             <section className="mt-12">
               <div className="mb-4 flex items-center gap-3">
                 <h2 className="text-lg font-semibold">Bought</h2>
-                <span className="rounded-md bg-state-err/10 px-2 py-0.5 text-xs font-semibold text-state-err">{completed.length}</span>
+                <span className="rounded-md bg-state-ok/15 px-2 py-0.5 text-xs font-semibold text-state-ok">{completed.length}</span>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{completed.map(renderCard)}</div>
             </section>
@@ -183,6 +140,80 @@ export default function FeedPage() {
       )}
       <PostDetail post={open} onClose={() => setOpenId(null)} />
     </>
+  );
+}
+
+function LinkCard({
+  post,
+  mine,
+  inCart,
+  busy,
+  onOpen,
+  onToggleCart,
+  onExpired,
+}: {
+  post: Post;
+  mine: boolean;
+  inCart: boolean;
+  busy: boolean;
+  onOpen: () => void;
+  onToggleCart: () => void;
+  onExpired: () => void;
+}) {
+  const done = post.status === 'COMPLETED';
+  const when = new Date(post.updatedAt);
+  return (
+    <Card className="flex flex-col overflow-hidden p-0">
+      <div className="flex items-center justify-between gap-2 bg-bg-elev/70 px-3 py-2">
+        <StatusBadge status={post.status} mine={mine} clientChecking={mine && !!post.progressingPausedAt} />
+        <time dateTime={when.toISOString()} className="shrink-0 text-right text-[11px] leading-tight tabular-nums text-ink-lo">
+          <span className="block font-semibold text-ink-mid">{when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+          <span className="block">{when.toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+        </time>
+      </div>
+      <button type="button" onClick={onOpen} className="block h-32 w-full overflow-hidden bg-bg-elev text-left" aria-label={`Open ${post.title}`}>
+        <Cover image={post.image} title={post.title} />
+      </button>
+      <div className="space-y-2 px-3.5 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <PostTitle post={post} className="min-w-0 flex-1" onHeadingClick={onOpen} />
+          <span className="shrink-0 text-base font-bold tabular-nums">{formatPrice(post.price)}</span>
+        </div>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-mid">
+          <span className="inline-flex items-center gap-1"><Link2 className="size-3.5" /> {post.connects} connects</span>
+          <span className="inline-flex items-center gap-1"><Users className="size-3.5" /> {post.clientName}</span>
+        </p>
+        {!done && (
+          <p className="inline-flex items-center gap-1 text-xs text-ink-lo">
+            <Eye className="size-3.5" /> {post.viewers} viewing
+          </p>
+        )}
+      </div>
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-line/70 px-3.5 py-2.5">
+        {done ? (
+          <span className="text-xs font-medium text-state-ok">Bought</span>
+        ) : post.status === 'PROGRESSING' && mine ? (
+          <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
+        ) : (
+          <span className="text-xs text-ink-lo">{post.status === 'PROGRESSING' ? 'In progress' : 'Available'}</span>
+        )}
+        {done ? (
+          <Button asChild size="sm" variant="outline"><Link href="/chat"><MessageCircle /> Messages</Link></Button>
+        ) : mine ? (
+          <Button asChild size="sm" variant="purple"><Link href="/cart">Open in cart</Link></Button>
+        ) : (
+          <Button
+            size="sm"
+            variant={inCart ? 'outline' : 'primary'}
+            loading={busy}
+            disabled={!inCart && post.status !== 'PUBLISHED'}
+            onClick={onToggleCart}
+          >
+            <ShoppingCart /> {inCart ? 'Remove cart' : 'Cart'}
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -202,7 +233,7 @@ function PostDetail({ post, onClose }: { post: Post | null; onClose: () => void 
         <DialogContent title={postLabel(post)} description={`Seller: ${post.clientName}`} className="max-w-xl">
           {post.name && <PostTitle post={{ name: null, title: post.title }} headingClassName="text-sm font-normal text-brand-mint" className="-mt-2 mb-3" />}
           <div className="h-56 overflow-hidden rounded-xl">
-            <PostImage image={post.image} title={post.title} />
+            <Cover image={post.image} title={post.title} />
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             {[
@@ -225,4 +256,10 @@ function PostDetail({ post, onClose }: { post: Post | null; onClose: () => void 
       )}
     </Dialog>
   );
+}
+
+function Cover({ image, title, className }: { image: Post['image']; title: string; className?: string }) {
+  const src = image?.url || '/post-default.jpg';
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt={title} className={cn('size-full object-cover', className)} />;
 }

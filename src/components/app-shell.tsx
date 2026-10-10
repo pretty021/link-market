@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { LogOut, LifeBuoy, ShoppingCart, User } from 'lucide-react';
-import { api } from '@/lib/client/api';
+import { api, ApiError } from '@/lib/client/api';
 import { homePath } from '@/lib/home';
 import type { Me, Post } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
@@ -22,25 +22,58 @@ type NavItem = { href: string; label: string };
 function navFor(me: Me): NavItem[] {
   if (me.kind === 'admin') {
     return [
-      { href: '/admin', label: 'Dashboard' },
-      { href: '/admin/posts', label: 'Posts' },
+      { href: '/admin', label: 'Requests' },
+      { href: '/admin/posts', label: 'Links' },
       { href: '/admin/clients', label: 'Clients' },
       { href: '/admin/customers', label: 'Customers' },
-      { href: '/chat', label: 'Inbox' },
+      { href: '/chat', label: 'Messages' },
       { href: '/admin/history', label: 'All chats' },
     ];
   }
   if (me.role === 'CLIENT') {
     return [
-      { href: '/client', label: 'Dashboard' },
+      { href: '/client', label: 'Links' },
+      { href: '/client/analysis', label: 'Analysis' },
       { href: '/chat', label: 'Messages' },
     ];
   }
   return [
     { href: '/feed', label: 'Marketplace' },
+    { href: '/analysis', label: 'Analysis' },
     { href: '/cart', label: 'Cart' },
     { href: '/chat', label: 'Messages' },
   ];
+}
+
+function SupportButton() {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function open() {
+    setBusy(true);
+    try {
+      const r = await api<{ conversationId: string }>('/api/conversations/support', { method: 'POST' });
+      router.push(`/chat?c=${r.conversationId}`);
+    } catch (e) {
+      toast({ title: e instanceof ApiError ? e.message : 'Could not open support.', tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={open}
+      disabled={busy}
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-ink-mid hover:bg-bg-elev hover:text-ink-hi disabled:opacity-60"
+      title="Ask the support team"
+    >
+      <LifeBuoy className="size-4" />
+      <span className="hidden sm:inline">Support</span>
+    </button>
+  );
 }
 
 function CartButton() {
@@ -75,7 +108,7 @@ function GlobalListeners() {
     const key = `${post.id}:${post.progressingAt}`;
     if (alerted.current.has(key)) return;
     alerted.current.add(key);
-    const title = `${post.holderName ?? 'A customer'} confirmed your post`;
+    const title = `${post.holderName ?? 'A customer'} confirmed your link`;
     const body = `"${post.title}" is in progress. The 5-minute countdown has started.`;
     toast({ title, body, tone: 'success', onClick: () => router.push('/client') });
     if ('Notification' in window && document.hidden && Notification.permission === 'granted') {
@@ -138,7 +171,7 @@ function UserMenu() {
           </Menu.Item>
           {me.kind === 'user' && (
             <Menu.Item onSelect={support} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-bg-elev">
-              <LifeBuoy className="size-4" /> Chat with Admin
+              <LifeBuoy className="size-4" /> {me.role === 'CUSTOMER' ? 'Ask support' : 'Chat with Admin'}
             </Menu.Item>
           )}
           <Menu.Separator className="my-1 h-px bg-line" />
@@ -179,7 +212,12 @@ function Header() {
           <ConnectionDot />
           <ThemeToggle />
           <NotificationBell />
-          {me.kind === 'user' && me.role === 'CUSTOMER' && <CartButton />}
+          {me.kind === 'user' && me.role === 'CUSTOMER' && (
+            <>
+              <SupportButton />
+              <CartButton />
+            </>
+          )}
           <UserMenu />
         </div>
       </div>

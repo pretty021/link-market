@@ -60,8 +60,8 @@ export default function AllChats() {
               {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role.toLowerCase()})</option>)}
             </select>
           </div>
-          <select className={cn(selectCls, 'w-full')} value={postId} onChange={(e) => setPostId(e.target.value)} aria-label="Post">
-            <option value="">All posts</option>
+          <select className={cn(selectCls, 'w-full')} value={postId} onChange={(e) => setPostId(e.target.value)} aria-label="Link">
+            <option value="">All links</option>
             {posts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
         </div>

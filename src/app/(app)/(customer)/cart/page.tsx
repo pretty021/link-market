@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, Link2, MessageCircle, Send, ShoppingCart, Trash2, X } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
-import { Countdown, PostImage, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
+import { Countdown, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
@@ -89,7 +89,7 @@ export default function CartPage() {
       if (e instanceof ApiError && e.status === 409) {
         if (e.data.post) patchPost(e.data.post as Post);
         toast({
-          title: e.code === 'ALREADY_PROGRESSING' ? 'Another customer confirmed this post first.' : e.message,
+          title: e.code === 'ALREADY_PROGRESSING' ? 'Another customer confirmed this link first.' : e.message,
           tone: 'error',
         });
       } else {
@@ -125,8 +125,8 @@ export default function CartPage() {
         <div className="flex justify-center py-20"><Spinner /></div>
       ) : data.items.length === 0 ? (
         <Card>
-          <Empty icon={<ShoppingCart />} title="Your cart is empty" hint="Add accounts to start." />
-          <div className="flex justify-center pb-10"><Button asChild><Link href="/feed">Browse listings</Link></Button></div>
+          <Empty icon={<ShoppingCart />} title="Your cart is empty" hint="Add links to start." />
+          <div className="flex justify-center pb-10"><Button asChild><Link href="/feed">Browse Links</Link></Button></div>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -136,8 +136,9 @@ export default function CartPage() {
             const pending = item.latestCheckStatus === 'PENDING';
             return (
               <Card key={post.id} className="flex flex-col gap-4 p-4 sm:flex-row">
-                <div className="h-32 w-full shrink-0 overflow-hidden rounded-xl sm:h-28 sm:w-44">
-                  <PostImage image={post.image} title={post.title} />
+                <div className="h-32 w-full shrink-0 overflow-hidden rounded-xl bg-bg-elev sm:h-28 sm:w-44">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={post.image?.url || '/post-default.jpg'} alt={post.title} className="size-full object-cover" />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -267,7 +268,7 @@ function ConfirmDialog({
                 <Send /> Submit
               </Button>
             </div>
-            <p className="text-xs text-ink-lo">Cancel releases the post: it goes back to approved and every customer can confirm it again.</p>
+            <p className="text-xs text-ink-lo">Cancel releases the link: it goes back to approved and every customer can confirm it again.</p>
           </form>
         </DialogContent>
       )}

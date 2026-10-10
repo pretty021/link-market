@@ -6,7 +6,7 @@ const font = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', variable: 
 
 export const metadata: Metadata = {
   title: 'Marketplace',
-  description: 'Browse fresh listings, confirm in real time, and talk directly with the seller.',
+  description: 'Browse fresh links, confirm in real time, and talk directly with the seller.',
 };
 
 export const viewport: Viewport = {

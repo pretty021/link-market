@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PageTitle } from '@/components/app-shell';
 import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
-import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
+import { Countdown, PostTitle, StatusBadge } from '@/components/post-bits';
 import { useToast } from '@/components/providers/toast';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { Badge, Card, Empty, Spinner } from '@/components/ui/primitives';
@@ -35,7 +35,7 @@ export default function AdminPosts() {
 
   return (
     <>
-      <PageTitle title="Posts overview" subtitle="Status, buyer and timer." />
+      <PageTitle title="Links overview" subtitle="Status, buyer and timer." />
       <ListToolbar
         controls={list}
         counts={view.counts}
@@ -47,14 +47,15 @@ export default function AdminPosts() {
         {shown === null ? (
           <div className="flex justify-center py-12"><Spinner /></div>
         ) : shown.length === 0 ? (
-          <Empty title={view.total === 0 ? 'No posts' : 'No posts match'} hint={view.total === 0 ? undefined : 'Try a different search or status.'} />
+          <Empty title={view.total === 0 ? 'No links' : 'No links match'} hint={view.total === 0 ? undefined : 'Try a different search or status.'} />
         ) : (
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[940px] text-sm">
             <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
               <tr>
-                <th className="px-4 py-3 font-medium">Post</th>
+                <th className="px-4 py-3 font-medium">Link</th>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Time</th>
                 <th className="px-4 py-3 font-medium">Holder</th>
                 <th className="px-4 py-3 font-medium">Visible</th>
                 <th className="px-4 py-3 font-medium">Countdown</th>
@@ -67,7 +68,15 @@ export default function AdminPosts() {
                 <tr key={p.id} className="hover:bg-bg-elev/40">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-14 shrink-0 overflow-hidden rounded-lg"><PostImage image={p.image} title={p.title} /></div>
+                      <div className="h-10 w-14 shrink-0 overflow-hidden rounded-lg bg-bg-elev">
+                        {p.image?.url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.image.url} alt={p.title} className="size-full object-cover" />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src="/post-default.jpg" alt={p.title} className="size-full object-cover" />
+                        )}
+                      </div>
                       <div className="min-w-0">
                         <PostTitle post={p} className="max-w-[260px]" headingClassName="font-medium" />
                         <p className="text-xs text-ink-lo">{p.connects} connects</p>
@@ -80,6 +89,9 @@ export default function AdminPosts() {
                       <StatusBadge status={p.status} clientChecking={!!p.progressingPausedAt} />
                       {p.approval && p.status !== 'REQUESTED' && <Badge tone="slate">Approved</Badge>}
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Stamp at={p.status === 'REQUESTED' ? p.createdAt : p.updatedAt} />
                   </td>
                   <td className="px-4 py-3 text-ink-mid">{p.holderName ?? '-'}</td>
                   <td className="px-4 py-3"><VisibilitySwitch post={p} onChange={upsert} /></td>
@@ -95,6 +107,17 @@ export default function AdminPosts() {
         )}
       </Card>
     </>
+  );
+}
+
+/** Request rows use the time the client sent them. Every other row uses the last update. */
+function Stamp({ at }: { at: string }) {
+  const d = new Date(at);
+  return (
+    <time dateTime={d.toISOString()} className="block text-[11px] leading-tight tabular-nums text-ink-lo">
+      <span className="block font-semibold text-ink-mid">{d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+      <span className="mt-0.5 block">{d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+    </time>
   );
 }
 

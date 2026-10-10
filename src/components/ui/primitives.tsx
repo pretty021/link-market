@@ -44,13 +44,14 @@ export function CardHeader({ title, subtitle, action, icon }: { title: React.Rea
   );
 }
 
-type Tone = 'mint' | 'purple' | 'amber' | 'red' | 'slate';
+type Tone = 'mint' | 'purple' | 'amber' | 'red' | 'slate' | 'ok';
 const tones: Record<Tone, string> = {
   mint: 'bg-brand-mint/10 text-brand-mint',
   purple: 'bg-brand-purple/10 text-brand-purple',
   amber: 'bg-state-warn/10 text-state-warn',
   red: 'bg-state-err/10 text-state-err',
   slate: 'bg-bg-elev text-ink-mid',
+  ok: 'bg-state-ok/15 text-state-ok',
 };
 const dots: Record<Tone, string> = {
   mint: 'bg-brand-mint',
@@ -58,6 +59,7 @@ const dots: Record<Tone, string> = {
   amber: 'bg-state-warn',
   red: 'bg-state-err',
   slate: 'bg-ink-lo',
+  ok: 'bg-state-ok',
 };
 
 /** Status label: tinted background, colored dot, no border. */

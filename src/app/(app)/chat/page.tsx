@@ -2,18 +2,25 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { MessageCircle } from 'lucide-react';
+import { LifeBuoy, MessageCircle } from 'lucide-react';
 import { ChatThread } from '@/components/chat/chat-thread';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
+import { useMe } from '@/components/providers/session';
+import { useToast } from '@/components/providers/toast';
+import { Button } from '@/components/ui/button';
 import { Card, Empty } from '@/components/ui/primitives';
-import { api } from '@/lib/client/api';
+import { api, ApiError } from '@/lib/client/api';
 import type { Conversation } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
 
 function ChatPage() {
   const params = useSearchParams();
   const router = useRouter();
+  const toast = useToast();
+  const { me } = useMe();
+  const isCustomer = me.kind === 'user' && me.role === 'CUSTOMER';
+  const [opening, setOpening] = useState(false);
   const selected = params.get('c');
   const [items, setItems] = useState<Conversation[] | null>(null);
   const [q, setQ] = useState('');
@@ -39,11 +46,28 @@ function ChatPage() {
 
   const select = (id: string) => router.push(`/chat?c=${id}`);
 
+  async function askSupport() {
+    setOpening(true);
+    try {
+      const r = await api<{ conversationId: string }>('/api/conversations/support', { method: 'POST' });
+      router.push(`/chat?c=${r.conversationId}`);
+    } catch (e) {
+      toast({ title: e instanceof ApiError ? e.message : 'Could not open support.', tone: 'error' });
+    } finally {
+      setOpening(false);
+    }
+  }
+
   return (
     <Card className="flex h-[calc(100vh-9.5rem)] min-h-[520px] overflow-hidden lg:h-[calc(100vh-8rem)]">
       <aside className={cn('w-full flex-col border-r border-line/70 lg:flex lg:w-[340px]', selected ? 'hidden' : 'flex')}>
-        <div className="border-b border-line/70 px-4 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-line/70 px-4 py-3">
           <h1 className="font-bold">Messages</h1>
+          {isCustomer && (
+            <Button size="sm" variant="purple" onClick={askSupport} loading={opening}>
+              <LifeBuoy /> Support
+            </Button>
+          )}
         </div>
         <ConversationList items={items} selected={selected} onSelect={select} q={q} onQ={setQ} />
       </aside>

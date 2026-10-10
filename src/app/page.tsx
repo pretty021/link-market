@@ -34,7 +34,7 @@ async function loadPublicData() {
 const steps = [
   {
     title: 'Find',
-    text: 'Browse reviewed accounts. Save to cart.',
+    text: 'Browse reviewed links. Save to cart.',
   },
   {
     title: 'Hold',
@@ -56,12 +56,12 @@ const faqs = [
     a: 'It goes back on the market. Anyone can confirm it again. The clock pauses while the seller reviews.',
   },
   {
-    q: 'Can two buyers hold the same listing?',
+    q: 'Can two buyers hold the same link?',
     a: 'No. Only one buyer can hold it at a time.',
   },
   {
     q: 'Who can see my checking info?',
-    a: 'Only you, the seller and our team.',
+    a: 'Only you and the seller.',
   },
   {
     q: 'How do I become a seller?',
@@ -77,7 +77,7 @@ function HoldCard() {
   return (
     <div className="panel w-full max-w-md p-5 shadow-lift">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-ink-lo">Example listing</span>
+        <span className="text-xs font-medium text-ink-lo">Example link</span>
         <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-purple/10 px-2 py-0.5 text-[11px] font-semibold text-brand-purple">
           <span className="size-1.5 rounded-full bg-brand-purple" /> Held for you
         </span>
@@ -85,7 +85,7 @@ function HoldCard() {
       <div className="mt-3 flex items-start justify-between gap-4">
         <LinkedInMark className="size-11 shrink-0" />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">Account #21</p>
+          <p className="font-semibold">Link #21</p>
           <p className="mt-0.5 flex items-center gap-1 text-sm text-ink-mid">
             8 years old · seller Payal <BadgeCheck className="size-4 text-brand-mint" aria-label="Reviewed seller" />
           </p>
@@ -129,7 +129,7 @@ export default async function Landing() {
         <div className={`${wrap} flex h-16 items-center gap-8`}>
           <Logo />
           <nav className="hidden gap-7 text-sm font-medium text-ink-mid md:flex">
-            <a href="#listings" className="hover:text-ink-hi">Listings</a>
+            <a href="#listings" className="hover:text-ink-hi">Link</a>
             <a href="#how" className="hover:text-ink-hi">How it works</a>
             <a href="#safety" className="hover:text-ink-hi">Safety</a>
             <a href="#faq" className="hover:text-ink-hi">FAQ</a>
@@ -151,13 +151,13 @@ export default async function Landing() {
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-line bg-bg-card px-3 py-1 text-xs font-medium text-ink-mid">
               <span className="size-1.5 rounded-full bg-brand-mint" />
-              {data.live > 0 ? `${data.live} listing${data.live === 1 ? '' : 's'} Available` : 'New accounts daily'}
+              {data.live > 0 ? `${data.live} link${data.live === 1 ? '' : 's'} Available` : 'New links daily'}
             </p>
             <h1 className="mt-5 text-4xl font-bold leading-[1.1] sm:text-5xl lg:text-[3.4rem]">
-              Reviewed accounts. Real sellers.
+              Reviewed links. Real sellers.
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-mid">
-              Checked before listing. Held just for you. Confirmed in chat.
+              Checked before the link. Held just for you. Confirmed in chat.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link href="/register" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-on-primary hover:bg-primary-hover">
@@ -186,7 +186,7 @@ export default async function Landing() {
         <div className={wrap}>
           <dl className="panel grid overflow-hidden shadow-lift sm:grid-cols-3">
             {[
-              { icon: Activity, label: 'Listings live', value: data.live, note: 'Ready to hold', live: true },
+              { icon: Activity, label: 'Link live', value: data.live, note: 'Ready to hold', live: true },
               { icon: Handshake, label: 'Deals completed', value: data.completed, note: 'Confirmed by sellers', live: false },
               { icon: BadgeCheck, label: 'Reviewed sellers', value: data.sellers, note: 'Verified by our team', live: false },
             ].map(({ icon: Icon, label, value, note, live }, i) => (
@@ -222,7 +222,7 @@ export default async function Landing() {
           <div className={wrap}>
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-bold">Latest Accounts</h2>
+                <h2 className="text-3xl font-bold">Latest Links</h2>
                 <p className="mt-2 text-ink-mid">Sign up to hold one.</p>
               </div>
               <Link href="/register" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-mint hover:underline">
@@ -288,7 +288,7 @@ export default async function Landing() {
           </div>
           <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
             {[
-              { icon: UserCheck, title: 'Reviewed', text: 'Every seller and account checked.' },
+              { icon: UserCheck, title: 'Reviewed', text: 'Every seller and link checked.' },
               { icon: Clock3, title: 'One buyer at a time', text: 'A hold locks it to you alone.' },
               { icon: Lock, title: 'Private', text: 'Only buyer, seller and team see details.' },
               { icon: MessagesSquare, title: 'Real chat', text: 'Talk to sellers and support anytime.' },
@@ -311,7 +311,7 @@ export default async function Landing() {
               <p className="text-sm font-semibold text-brand-mint">For sellers</p>
               <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Send a list. We do the rest.</h2>
               <p className="mt-3 text-ink-mid">
-                One line per account. We publish it. You get alerts.
+                One line per link. We publish it. You get alerts.
               </p>
             </div>
             <ul className="space-y-3 text-sm">
@@ -350,7 +350,7 @@ export default async function Landing() {
       <section className="bg-primary">
         <div className={`${wrap} flex flex-col items-start justify-between gap-6 py-14 sm:flex-row sm:items-center`}>
           <div>
-            <h2 className="text-2xl font-bold text-on-primary sm:text-3xl">Find your next account.</h2>
+            <h2 className="text-2xl font-bold text-on-primary sm:text-3xl">Find your next link.</h2>
             <p className="mt-2 text-on-primary/80">Free to join.</p>
           </div>
           <Link href="/register" className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-6 py-3 font-semibold text-[#0A66C2] hover:bg-white/90">

@@ -18,6 +18,8 @@ export type Post = {
   viewers: number;
   clientId: string;
   clientName: string;
+  /** Seller photo. Sent to admins and the post's client. */
+  clientImage: ImageInfo | null;
   holderId: string | null;
   holderName: string | null;
   progressingAt: string | null;
@@ -25,6 +27,8 @@ export type Post = {
   /** Set while the Customer's checking info waits for the Client: the countdown is stopped ("Client Checking"). */
   progressingPausedAt: string | null;
   completedAt: string | null;
+  /** When an admin accepted the post. */
+  approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

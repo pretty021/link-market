@@ -44,7 +44,7 @@ describe('countdown expiry', () => {
     expect(notes.map((n) => n.userId).sort()).toEqual([client.id, holder.id].sort());
 
     const last = await prisma.message.findFirstOrThrow({ where: { conversationId }, orderBy: { createdAt: 'desc' } });
-    expect(last).toMatchObject({ type: 'SYSTEM', body: 'Time expired. This post is available again.' });
+    expect(last).toMatchObject({ type: 'SYSTEM', body: 'Time expired. This link is available again.' });
 
     // A second expiry run is a no-op.
     expect(await expireDue()).toEqual([]);

@@ -472,8 +472,15 @@ function Composer({
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
   const paused = !!post?.progressingPausedAt;
   const countdown = useCountdown(post?.status === 'PROGRESSING' && !paused ? post.progressingExpiresAt : null);
   // Client Checking: time is stopped, so the deal is not closed even if the old deadline passed.
@@ -520,6 +527,14 @@ function Composer({
           ? 'Waiting for client review.'
           : 'Chat opens after Checked.';
     return <div className="border-t border-line/70 px-4 py-3 text-center text-xs text-ink-lo">{why}</div>;
+  }
+
+  function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
   }
 
   function insertEmoji(emoji: string) {
@@ -581,7 +596,7 @@ function Composer({
           </button>
         </div>
       )}
-      <div className="flex gap-2">
+      <div className="flex items-end gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -596,11 +611,14 @@ function Composer({
           <Paperclip />
         </Button>
         <EmojiPicker onPick={insertEmoji} />
-        <Input
+        <textarea
           ref={inputRef}
+          rows={1}
           placeholder={file ? 'Add a caption (optional)...' : 'Type a message...'}
+          title="Enter for a new line. Ctrl+Enter to send."
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={onComposerKeyDown}
           onPaste={(e) => {
             const pasted = e.clipboardData.files?.[0];
             if (pasted) {
@@ -609,11 +627,13 @@ function Composer({
             }
           }}
           maxLength={4000}
+          className="field h-auto max-h-40 min-h-10 resize-none py-2.5 leading-5"
         />
         <Button type="submit" size="icon" className="size-10 shrink-0" loading={busy} aria-label="Send">
           {!busy && <Send />}
         </Button>
       </div>
+      <p className="mt-1.5 pl-24 text-[11px] text-ink-lo">Enter for a new line · Ctrl+Enter to send</p>
     </form>
   );
 }

@@ -87,7 +87,7 @@ export function StatusBadge({ status, mine, clientChecking }: { status: PostStat
       if (clientChecking) return <Badge tone="amber">Client Checking</Badge>;
       return <Badge tone="purple">{mine ? 'Your hold' : 'In progress'}</Badge>;
     case 'COMPLETED':
-      return <Badge tone="red">Completed</Badge>;
+      return <Badge tone="ok">Completed</Badge>;
   }
 }
 
@@ -144,15 +144,14 @@ const LINKEDIN_BLUE = '#0A66C2';
 /** The white "in" letters on their own (no tile). */
 function InGlyph({ className }: { className?: string }) {
   return (
-    // <svg viewBox="9 8.4 33 31" className={className} aria-hidden="true">
-    //   <circle cx="13.2" cy="12.6" r="3.7" fill="#fff" />
-    //   <rect x="9.9" y="18.6" width="6.6" height="20.4" rx="0.6" fill="#fff" />
-    //   <path
-    //     fill="#fff"
-    //     d="M20.9 18.6H27.2V21.4C28.1 19.7 30.3 18.1 33.6 18.1C40.3 18.1 41.5 22.5 41.5 28.2V39H34.9V29.4C34.9 27.1 34.8 24.2 31.7 24.2C28.5 24.2 28 26.7 28 29.3V39H20.9Z"
-    //   />
-    // </svg>
-    <>...</>
+    <svg viewBox="9 8.4 33 31" className={className} aria-hidden="true">
+      <circle cx="13.2" cy="12.6" r="3.7" fill="#fff" />
+      <rect x="9.9" y="18.6" width="6.6" height="20.4" rx="0.6" fill="#fff" />
+      <path
+        fill="#fff"
+        d="M20.9 18.6H27.2V21.4C28.1 19.7 30.3 18.1 33.6 18.1C40.3 18.1 41.5 22.5 41.5 28.2V39H34.9V29.4C34.9 27.1 34.8 24.2 31.7 24.2C28.5 24.2 28 26.7 28 29.3V39H20.9Z"
+      />
+    </svg>
   );
 }
 
@@ -193,11 +192,17 @@ export function ImageUpload({
   onChange,
   label = 'Upload image',
   round,
+  placeholderSrc,
+  imageOnly,
 }: {
   value: ImageInfo | null;
   onChange: (img: ImageInfo | null) => void;
   label?: string;
   round?: boolean;
+  /** Shown in the preview until a file is uploaded. */
+  placeholderSrc?: string;
+  /** Preview only: the picture stays clickable, with no labels beside it. */
+  imageOnly?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -226,14 +231,18 @@ export function ImageUpload({
         type="button"
         onClick={() => input.current?.click()}
         className={cn(
-          'relative flex shrink-0 items-center justify-center overflow-hidden border border-dashed border-line bg-bg-base text-ink-lo transition hover:border-brand-mint/60 hover:text-brand-mint',
+          'relative flex shrink-0 items-center justify-center overflow-hidden bg-bg-base text-ink-lo transition',
+          imageOnly && (value?.url || placeholderSrc)
+            ? 'rounded-xl hover:opacity-90'
+            : 'border border-dashed border-line hover:border-brand-mint/60 hover:text-brand-mint',
           round ? 'size-16 rounded-full' : 'h-20 w-28 rounded-xl',
         )}
         aria-label={label}
+        title={error ?? label}
       >
-        {value?.url ? (
+        {value?.url || placeholderSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value.url} alt="" className="size-full object-cover" />
+          <img src={value?.url || placeholderSrc} alt="" className="size-full object-cover" />
         ) : (
           <ImagePlus className="size-5" />
         )}
@@ -243,18 +252,20 @@ export function ImageUpload({
           </span>
         )}
       </button>
-      <div className="min-w-0 text-xs">
-        <button type="button" onClick={() => input.current?.click()} className="font-semibold text-brand-mint hover:underline">
-          {value ? 'Replace' : label}
-        </button>
-        {value && (
-          <button type="button" onClick={() => onChange(null)} className="ml-3 text-ink-lo hover:text-state-err">
-            Remove
+      {!imageOnly && (
+        <div className="min-w-0 text-xs">
+          <button type="button" onClick={() => input.current?.click()} className="font-semibold text-brand-mint hover:underline">
+            {value ? 'Replace' : label}
           </button>
-        )}
-        <p className="mt-1 text-ink-lo">JPG, PNG or WEBP · max 5 MB</p>
-        {error && <p className="mt-1 text-state-err">{error}</p>}
-      </div>
+          {value && (
+            <button type="button" onClick={() => onChange(null)} className="ml-3 text-ink-lo hover:text-state-err">
+              Remove
+            </button>
+          )}
+          <p className="mt-1 text-ink-lo">JPG, PNG or WEBP · max 5 MB</p>
+          {error && <p className="mt-1 text-state-err">{error}</p>}
+        </div>
+      )}
       <input
         ref={input}
         type="file"

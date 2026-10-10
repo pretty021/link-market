@@ -4,15 +4,15 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Ban, MessageCircle, Pencil, Plus, Search, Trash2, Unlock } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
-import { ImageUpload } from '@/components/post-bits';
+import { ImageUpload, PostImage } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Avatar, Badge, Card, Empty, Field, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
-import type { ImageInfo, UserRow } from '@/lib/client/types';
-import { timeAgo } from '@/lib/utils';
+import type { ImageInfo, Post, UserRow } from '@/lib/client/types';
+import { formatPrice, timeAgo } from '@/lib/utils';
 
 type Role = 'CLIENT' | 'CUSTOMER';
 
@@ -22,19 +22,33 @@ export function UserTable({ role }: { role: Role }) {
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<UserRow | 'new' | null>(null);
+  const [viewing, setViewing] = useState<UserRow | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const isClient = role === 'CLIENT';
-  const countKey = isClient ? 's_counts' : 'b_counts';
+  const [completed, setCompleted] = useState<Post[]>([]);
 
   const load = useCallback(async () => {
     const r = await api<{ users: UserRow[] }>(`/api/admin/users?role=${role}${q ? `&q=${encodeURIComponent(q)}` : ''}`);
     setUsers(r.users);
   }, [role, q]);
+  const loadSold = useCallback(async () => {
+    if (role !== 'CLIENT') return;
+    const r = await api<{ posts: Post[] }>('/api/admin/posts');
+    setCompleted(r.posts.filter((post) => post.status === 'COMPLETED'));
+  }, [role]);
   useEffect(() => {
     const t = setTimeout(() => void load(), q ? 250 : 0);
     return () => clearTimeout(t);
   }, [load, q]);
-  useOnReconnect(load);
+  useEffect(() => {
+    void loadSold();
+  }, [loadSold]);
+  useOnReconnect(() => {
+    void load();
+    void loadSold();
+  });
+  useSocketEvent('post:updated', () => void loadSold());
+  useSocketEvent('post:published', () => void loadSold());
   useSocketEvent<{ userId?: string; online?: boolean }>('presence:update', (p) => {
     if (p.userId) setUsers((prev) => prev?.map((u) => (u.id === p.userId ? { ...u, online: !!p.online } : u)) ?? prev);
   });
@@ -64,7 +78,7 @@ export function UserTable({ role }: { role: Role }) {
     <>
       <PageTitle
         title={isClient ? 'Clients' : 'Customers'}
-        subtitle={isClient ? 'Sellers · s_counts' : 'Buyers · b_counts · cart limit'}
+        subtitle={isClient ? 'Sellers · Sold' : 'Buyers · Buy · cart limit'}
         action={<Button onClick={() => setEditing('new')}><Plus /> New {isClient ? 'client' : 'customer'}</Button>}
       />
       <div className="relative mb-4 max-w-sm">
@@ -82,7 +96,7 @@ export function UserTable({ role }: { role: Role }) {
               <tr>
                 <th className="px-4 py-3 font-medium">User</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 text-right font-medium">{countKey}</th>
+                <th className="px-4 py-3 text-right font-medium">{isClient ? 'Sold' : 'Buy'}</th>
                 {!isClient && <th className="px-4 py-3 text-right font-medium">Cart limit</th>}
                 <th className="px-4 py-3 font-medium">Last seen</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -90,7 +104,11 @@ export function UserTable({ role }: { role: Role }) {
             </thead>
             <tbody className="divide-y divide-line/40">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-bg-elev/40">
+                <tr
+                  key={u.id}
+                  className={isClient ? 'cursor-pointer hover:bg-bg-elev/40' : 'hover:bg-bg-elev/40'}
+                  onClick={isClient ? () => setViewing(u) : undefined}
+                >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar name={u.name} src={u.image?.url} online={u.online} />
@@ -103,10 +121,10 @@ export function UserTable({ role }: { role: Role }) {
                   <td className="px-4 py-3">
                     {u.isBlocked ? <Badge tone="red">Blocked</Badge> : u.online ? <Badge tone="mint">Online</Badge> : <Badge>Offline</Badge>}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{u[countKey] ?? 0}</td>
+                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{isClient ? completed.filter((p) => p.clientId === u.id).length : (u.b_counts ?? 0)}</td>
                   {!isClient && <td className="px-4 py-3 text-right tabular-nums">{u.cartLimit}</td>}
                   <td className="px-4 py-3 text-xs text-ink-lo">{u.lastSeenAt ? timeAgo(u.lastSeenAt) : 'Never'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       <Button size="sm" variant="ghost" onClick={() => act(u, 'chat')} loading={busy === u.id + 'chat'} title="Start chat"><MessageCircle /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditing(u)} title="Edit"><Pencil /></Button>
@@ -127,7 +145,52 @@ export function UserTable({ role }: { role: Role }) {
         )}
       </Card>
       <UserDialog role={role} user={editing} onClose={() => setEditing(null)} onSaved={() => void load()} />
+      {isClient && <SoldAccounts user={viewing} posts={completed} onClose={() => setViewing(null)} />}
     </>
+  );
+}
+
+function SoldAccounts({ user, posts, onClose }: { user: UserRow | null; posts: Post[]; onClose: () => void }) {
+  const sold = user
+    ? posts
+        .filter((p) => p.clientId === user.id)
+        .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
+    : [];
+
+  return (
+    <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title={user ? `${user.name} sold` : 'Sold'} description={sold.length === 1 ? '1 completed account' : `${sold.length} completed accounts`} className="max-w-xl">
+        {sold.length === 0 ? (
+          <Empty title="No sold accounts" hint="Completed accounts show up here." />
+        ) : (
+          <ul className="-mx-2 divide-y divide-line/60">
+            {sold.map((p) => {
+              const when = p.completedAt ? new Date(p.completedAt) : null;
+              const name = p.name?.trim();
+              return (
+                <li key={p.id} className="flex items-center gap-3 px-2 py-3">
+                  <div className="size-12 shrink-0 overflow-hidden rounded-lg bg-bg-elev ring-1 ring-line/70">
+                    <PostImage image={p.image} title={p.title} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink-hi">{name || p.title}</p>
+                    {name && <p className="truncate text-xs text-brand-mint">{p.title}</p>}
+                    {when && (
+                      <time dateTime={when.toISOString()} className="mt-0.5 block text-[11px] tabular-nums text-ink-lo">
+                        {when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                        <span className="px-1 text-line">·</span>
+                        {when.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </time>
+                    )}
+                  </div>
+                  <p className="shrink-0 text-sm font-bold tabular-nums text-ink-hi">{formatPrice(p.price)}</p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -162,7 +225,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const counts = isClient ? { s_counts: Number(form.count) } : { b_counts: Number(form.count), cartLimit: Number(form.cartLimit) };
+    const counts = isClient ? {} : { b_counts: Number(form.count), cartLimit: Number(form.cartLimit) };
     try {
       if (isNew) {
         await api('/api/admin/users', { json: { role, name: form.name, email: form.email, password: form.password, image, ...counts } });
@@ -194,16 +257,16 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
           <Field label={isNew ? 'Password (at least 8 characters)' : 'New password (leave empty to keep)'} htmlFor="u-pass">
             <Input id="u-pass" type="password" minLength={8} required={isNew} value={form.password} onChange={set('password')} autoComplete="new-password" />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label={isClient ? 's_counts' : 'b_counts'} htmlFor="u-count">
-              <Input id="u-count" type="number" min={0} step={1} required value={form.count} onChange={set('count')} />
-            </Field>
-            {!isClient && (
+          {!isClient && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Buy" htmlFor="u-count">
+                <Input id="u-count" type="number" min={0} step={1} required value={form.count} onChange={set('count')} />
+              </Field>
               <Field label="Cart limit" htmlFor="u-cart">
                 <Input id="u-cart" type="number" min={0} step={1} required value={form.cartLimit} onChange={set('cartLimit')} />
               </Field>
-            )}
-          </div>
+            </div>
+          )}
           {error && <p className="text-sm text-state-err">{error}</p>}
           <Button type="submit" className="w-full" loading={busy}>{isNew ? 'Create' : 'Save changes'}</Button>
         </form>

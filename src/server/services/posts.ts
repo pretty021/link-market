@@ -12,13 +12,15 @@ import { addMessage } from './messages';
 export const PROGRESS_MINUTES = 5;
 
 export const postInclude = {
-  client: { select: { id: true, name: true } },
+  client: { select: { id: true, name: true, image: true } },
   holder: { select: { id: true, name: true } },
+  approvalRecord: { select: { approvedAt: true } },
 } as const;
 
 export type PostRow = Post & {
-  client: { id: string; name: string };
+  client: { id: string; name: string; image: unknown };
   holder: { id: string; name: string } | null;
+  approvalRecord: { approvedAt: Date } | null;
 };
 
 /**
@@ -40,12 +42,14 @@ export function toPostDTO(p: PostRow, opts: { staff: boolean }) {
     viewers: viewerCount(p.id),
     clientId: p.clientId,
     clientName: p.client.name,
+    clientImage: opts.staff ? ((p.client.image as ImageInfo | null) ?? null) : null,
     holderId: p.holderId,
     holderName: opts.staff ? (p.holder?.name ?? null) : null,
     progressingAt: p.progressingAt,
     progressingExpiresAt: p.progressingExpiresAt,
     progressingPausedAt: p.progressingPausedAt,
     completedAt: p.completedAt,
+    approvedAt: p.approvalRecord?.approvedAt ?? null,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };
@@ -122,7 +126,7 @@ export async function expireDue(postIds?: string[]): Promise<string[]> {
           await addMessage(tx, out, {
             conversationId: conv.id,
             type: 'SYSTEM',
-            body: 'Time expired. This post is available again.',
+            body: 'Time expired. This link is available again.',
           });
         }
 
@@ -182,16 +186,16 @@ export async function confirmPost(customer: UserActor, postId: string) {
   if (rows.length === 0) {
     const post = await prisma.post.findUnique({ where: { id: postId }, include: postInclude });
     const serverNow = await dbNow();
-    if (!post || !post.approval || !post.visible) throw notFound('Post');
+    if (!post || !post.approval || !post.visible) throw notFound('Link');
     const data = { post: toPostDTO(post, { staff: false }), serverNow };
     if (post.status === 'PUBLISHED') {
       const inCart = await prisma.cartItem.findUnique({
         where: { customerId_postId: { customerId: customer.id, postId } },
       });
-      if (!inCart) throw conflict('NOT_IN_CART', 'Add this post to your cart first.', data);
+      if (!inCart) throw conflict('NOT_IN_CART', 'Add this link to your cart first.', data);
     }
-    if (post.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This post is already completed.', data);
-    throw conflict('ALREADY_PROGRESSING', 'Another customer confirmed this post first.', data);
+    if (post.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This link is already completed.', data);
+    throw conflict('ALREADY_PROGRESSING', 'Another customer confirmed this link first.', data);
   }
 
   const { progressingExpiresAt, serverNow } = rows[0];
@@ -230,10 +234,10 @@ export async function cancelHold(customer: UserActor, postId: string) {
 
       if (rows.length === 0) {
         const current = await tx.post.findUnique({ where: { id: postId }, include: postInclude });
-        if (!current || !current.approval) throw notFound('Post');
+        if (!current || !current.approval) throw notFound('Link');
         const data = { post: toPostDTO(current, { staff: false }), serverNow: await dbNow(tx) };
-        if (current.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This post is already completed.', data);
-        throw conflict('NOT_HOLDING', 'You are not holding this post.', data);
+        if (current.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This link is already completed.', data);
+        throw conflict('NOT_HOLDING', 'You are not holding this link.', data);
       }
 
       const row = rows[0];
@@ -248,7 +252,7 @@ export async function cancelHold(customer: UserActor, postId: string) {
         await addMessage(tx, out, {
           conversationId: conv.id,
           type: 'SYSTEM',
-          body: 'The customer cancelled the hold. This post is available again.',
+          body: 'The customer cancelled the hold. This link is available again.',
         });
       }
 
@@ -287,15 +291,15 @@ export async function acceptPost(admin: AdminActor, postId: string, note?: strin
       RETURNING id`;
     if (rows.length === 0) {
       const p = await tx.post.findUnique({ where: { id: postId } });
-      if (!p) throw notFound('Post');
-      if (p.status !== 'REQUESTED') throw conflict('NOT_REQUESTED', 'This post was already accepted.');
+      if (!p) throw notFound('Link');
+      if (p.status !== 'REQUESTED') throw conflict('NOT_REQUESTED', 'This link was already accepted.');
       throw badRequest('PRICE_REQUIRED', 'Set and save a price before accepting.');
     }
     await tx.postApproval.create({ data: { postId, adminId: admin.id, note: note || null } });
     const post = await loadPost(tx, postId);
     await notify(tx, out, { userId: post.clientId }, {
       type: 'POST_ACCEPTED',
-      title: 'Post accepted',
+      title: 'Link accepted',
       body: `"${post.name || post.title}" is now live for customers.`,
       postId,
     });
@@ -309,10 +313,10 @@ export async function acceptPost(admin: AdminActor, postId: string, note?: strin
 
 export async function updatePostByAdmin(
   postId: string,
-  data: { image?: ImageInfo | null; connects?: number; price?: number; name?: string | null },
+  data: { image?: ImageInfo | null; connects?: number; price?: number; name?: string | null; title?: string },
 ) {
   const before = await prisma.post.findUnique({ where: { id: postId } });
-  if (!before) throw notFound('Post');
+  if (!before) throw notFound('Link');
   const post = await prisma.post.update({
     where: { id: postId },
     data: {
@@ -320,6 +324,7 @@ export async function updatePostByAdmin(
       ...(data.connects !== undefined ? { connects: data.connects } : {}),
       ...(data.price !== undefined ? { price: data.price } : {}),
       ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.title !== undefined ? { title: data.title } : {}),
     },
     include: postInclude,
   });
@@ -347,9 +352,9 @@ export async function setPostVisibility(postId: string, visible: boolean) {
       RETURNING id`;
     if (rows.length === 0) {
       const p = await tx.post.findUnique({ where: { id: postId } });
-      if (!p) throw notFound('Post');
-      if (!p.approval) throw conflict('NOT_ACCEPTED', 'Accept the post first.');
-      throw conflict('IN_PROGRESS', 'A buyer is holding this post. Try again when the deal ends.');
+      if (!p) throw notFound('Link');
+      if (!p.approval) throw conflict('NOT_ACCEPTED', 'Accept the link first.');
+      throw conflict('IN_PROGRESS', 'A buyer is holding this link. Try again when the deal ends.');
     }
     const carted = visible
       ? []
@@ -369,20 +374,31 @@ export async function setPostVisibility(postId: string, visible: boolean) {
   return { post: toPostDTO(result.post, { staff: true }), serverNow: result.serverNow };
 }
 
-/** Delete a post that is still a request (never shown to Customers). */
+/** Delete a post that is still a request (never shown to Customers). The Client is notified. */
 export async function deleteRequestedPost(postId: string) {
-  const rows = await prisma.$queryRaw<{ id: string; clientId: string; image: unknown }[]>`
-    DELETE FROM "Post" WHERE id = ${postId} AND status = 'REQUESTED'
-    RETURNING id, "clientId", image`;
-  if (rows.length === 0) {
-    const p = await prisma.post.findUnique({ where: { id: postId } });
-    if (!p) throw notFound('Post');
-    throw conflict('NOT_REQUESTED', 'Only post requests can be deleted.');
-  }
-  const image = rows[0].image as ImageInfo | null;
-  if (image?.key) await deleteStoredImage(image.key).catch(() => undefined);
+  const existing = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true, clientId: true, title: true, name: true, status: true, image: true },
+  });
+  if (!existing) throw notFound('Link');
+  if (existing.status !== 'REQUESTED') throw conflict('NOT_REQUESTED', 'Only link requests can be deleted.');
+
   const out = new Outbox();
-  out.push([rooms.admins, rooms.user(rows[0].clientId)], 'post:deleted', { postId });
+  await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      DELETE FROM "Post" WHERE id = ${postId} AND status = 'REQUESTED'
+      RETURNING id`;
+    if (rows.length === 0) throw conflict('NOT_REQUESTED', 'Only link requests can be deleted.');
+    const label = existing.name?.trim() || existing.title;
+    await notify(tx, out, { userId: existing.clientId }, {
+      type: 'POST_DELETED',
+      title: 'Link request deleted',
+      body: `"${label}" was removed by an admin.`,
+    });
+  });
+  const image = existing.image as ImageInfo | null;
+  if (image?.key) await deleteStoredImage(image.key).catch(() => undefined);
+  out.push([rooms.admins, rooms.user(existing.clientId)], 'post:deleted', { postId });
   out.flush();
   return { ok: true };
 }
@@ -400,15 +416,30 @@ export async function listAdminPosts(status?: PostStatus) {
 // ───────────────────────── Client ─────────────────────────
 
 export async function createClientPosts(client: UserActor, titles: string[]) {
-  const posts = await prisma.$transaction(
-    titles.map((title) => prisma.post.create({ data: { clientId: client.id, title }, include: postInclude })),
-  );
-  const serverNow = await dbNow();
-  const dtos = posts.map((p) => toPostDTO(p, { staff: true }));
   const out = new Outbox();
-  out.push([rooms.admins, rooms.user(client.id)], 'post:requested', { posts: dtos, serverNow });
+  const result = await prisma.$transaction(async (tx) => {
+    const posts = await Promise.all(
+      titles.map((title) => tx.post.create({ data: { clientId: client.id, title }, include: postInclude })),
+    );
+    const serverNow = await dbNow(tx);
+    const dtos = posts.map((p) => toPostDTO(p, { staff: true }));
+    const admins = await tx.admin.findMany({ select: { id: true } });
+    const label = posts[0]?.name?.trim() || posts[0]?.title;
+    const title = posts.length === 1 ? 'New link request' : `${posts.length} new link requests`;
+    const body = posts.length === 1 ? `"${label}" from ${client.name}` : `${posts.length} requests from ${client.name}`;
+    for (const admin of admins) {
+      await notify(tx, out, { adminId: admin.id }, {
+        type: 'POST_REQUESTED',
+        title,
+        body,
+        postId: posts.length === 1 ? posts[0]?.id : null,
+      });
+    }
+    out.push([rooms.admins, rooms.user(client.id)], 'post:requested', { posts: dtos, serverNow });
+    return { posts: dtos, serverNow };
+  });
   out.flush();
-  return { posts: dtos, serverNow };
+  return result;
 }
 
 export async function listClientPosts(client: UserActor) {
@@ -447,9 +478,9 @@ export async function listFeed(customer: UserActor) {
 export async function getPostForCustomer(customer: UserActor, postId: string) {
   await expireDue([postId]);
   const post = await prisma.post.findUnique({ where: { id: postId }, include: postInclude });
-  if (!post) throw notFound('Post');
+  if (!post) throw notFound('Link');
   const visible = (post.approval && post.visible && customerVisible(post.status)) || post.holderId === customer.id;
-  if (!visible) throw notFound('Post');
+  if (!visible) throw notFound('Link');
 
   await prisma.$executeRaw`
     WITH ins AS (
@@ -497,15 +528,15 @@ export async function addToCart(customer: UserActor, postId: string) {
     });
     if (existing) return false;
     const post = await tx.post.findUnique({ where: { id: postId } });
-    if (!post || !post.approval || !post.visible) throw notFound('Post');
-    if (post.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This post is already completed.');
+    if (!post || !post.approval || !post.visible) throw notFound('Link');
+    if (post.status === 'COMPLETED') throw conflict('POST_COMPLETED', 'This link is already completed.');
     if (post.status !== 'PUBLISHED') {
-      throw conflict('POST_UNAVAILABLE', 'Only published posts can be added to the cart.');
+      throw conflict('POST_UNAVAILABLE', 'Only published links can be added to the cart.');
     }
     const user = await tx.user.findUniqueOrThrow({ where: { id: customer.id } });
     throw conflict(
       'CART_LIMIT_REACHED',
-      `Your cart is full. You can hold up to ${user.cartLimit} post${user.cartLimit === 1 ? '' : 's'}.`,
+      `Your cart is full. You can hold up to ${user.cartLimit} link${user.cartLimit === 1 ? '' : 's'}.`,
       { cartLimit: user.cartLimit },
     );
   });
@@ -527,7 +558,7 @@ export async function removeFromCart(customer: UserActor, postId: string) {
     const holding = await prisma.post.findFirst({
       where: { id: postId, status: 'PROGRESSING', holderId: customer.id },
     });
-    if (holding) throw conflict('HOLDING', 'You are progressing this post. Finish or let the countdown end first.');
+    if (holding) throw conflict('HOLDING', 'You are progressing this link. Finish or let the countdown end first.');
   }
   const cart = await cartSnapshot(customer.id);
   const out = new Outbox();

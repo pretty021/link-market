@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyRound, UserRound } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { ImageUpload } from '@/components/post-bits';
@@ -9,7 +9,7 @@ import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, Field, Input } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
-import type { ImageInfo, Me } from '@/lib/client/types';
+import type { ImageInfo, Me, Post } from '@/lib/client/types';
 
 export default function ProfilePage() {
   const { me, setMe } = useMe();
@@ -21,6 +21,14 @@ export default function ProfilePage() {
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+  const [sold, setSold] = useState(0);
+
+  useEffect(() => {
+    if (me.kind !== 'user' || me.role !== 'CLIENT') return;
+    api<{ posts: Post[] }>('/api/client/posts')
+      .then((r) => setSold(r.posts.filter((p) => p.status === 'COMPLETED').length))
+      .catch(() => setSold(0));
+  }, [me]);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -52,14 +60,14 @@ export default function ProfilePage() {
     }
   }
 
-  // Counts are role-specific and read-only here: Clients see s_counts, Customers see b_counts.
+  // Clients see how many of their accounts are completed. Customers still see the admin-set counts.
   const counts =
     me.kind === 'user'
       ? me.role === 'CLIENT'
-        ? [{ label: 's_counts', value: me.s_counts ?? 0 }]
+        ? [{ label: 'Sold', value: sold }]
         : [
-            { label: 'b_counts', value: me.b_counts ?? 0 },
-            { label: 'Cart limit', value: me.cartLimit ?? 1 },
+            { label: 'Buy', value: me.b_counts ?? 0, hint: 'set by admin' },
+            { label: 'Cart limit', value: me.cartLimit ?? 1, hint: 'set by admin' },
           ]
       : [];
 
@@ -77,7 +85,10 @@ export default function ProfilePage() {
               <div className="grid grid-cols-2 gap-3">
                 {counts.map((c) => (
                   <div key={c.label} className="rounded-xl border border-line bg-bg-base/60 p-3">
-                    <p className="text-[11px] text-ink-lo">{c.label} <span className="text-ink-lo/70">(set by admin)</span></p>
+                    <p className="text-[11px] text-ink-lo">
+                      {c.label}
+                      {'hint' in c && c.hint && <span className="text-ink-lo/70"> ({c.hint})</span>}
+                    </p>
                     <p className="mt-0.5 text-xl font-bold tabular-nums">{c.value}</p>
                   </div>
                 ))}

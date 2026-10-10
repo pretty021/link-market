@@ -73,6 +73,7 @@ export const adminPostUpdateSchema = z.object({
     .max(10_000_000)
     .transform((v) => Math.round(v * 100) / 100)
     .optional(),
+  title: z.string().trim().min(1, 'Title is required.').max(300, 'Title must be 300 characters or less.').optional(),
 });
 
 export const visibilitySchema = z.object({ visible: z.boolean() });
