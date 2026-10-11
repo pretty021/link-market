@@ -27,7 +27,7 @@ async function main() {
       update: {},
     });
 
-  const pt96 = await user('CLIENT', 'pt96', 'client@example.com', { s_counts: 12 });
+  const pty96 = await user('CLIENT', 'pty96', 'client@example.com', { s_counts: 12 });
   const nova = await user('CLIENT', 'Nova Seller', 'client2@example.com', { s_counts: 3 });
   await user('CUSTOMER', 'Alex Buyer', 'customer@example.com', { b_counts: 5, cartLimit: 2 });
   await user('CUSTOMER', 'Sam Buyer', 'customer2@example.com', { b_counts: 1 });
@@ -43,7 +43,7 @@ async function main() {
   for (const p of published) {
     await prisma.post.create({
       data: {
-        clientId: pt96.id,
+        clientId: pty96.id,
         title: p.title,
         price: p.price,
         connects: p.connects,
@@ -55,7 +55,7 @@ async function main() {
   }
   await prisma.post.createMany({
     data: [
-      { clientId: pt96.id, title: 'Account #1045 - 2 years old' },
+      { clientId: pty96.id, title: 'Account #1045 - 2 years old' },
       { clientId: nova.id, title: 'Account #2001 - fresh, 3 months' },
     ],
   });

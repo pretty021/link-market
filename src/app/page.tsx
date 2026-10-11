@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { Activity, ArrowRight, BadgeCheck, Check, ChevronDown, Clock3, Handshake, Lock, MessagesSquare, ShieldCheck, Timer, UserCheck } from 'lucide-react';
 import { CanvasBackground } from '@/components/canvas-bg/canvas-background';
 import { Logo } from '@/components/logo';
-import { LinkedInMark, PostImage } from '@/components/post-bits';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { prisma } from '@/lib/db';
 import { homePath } from '@/lib/home';
@@ -82,15 +81,25 @@ function HoldCard() {
           <span className="size-1.5 rounded-full bg-brand-purple" /> Held for you
         </span>
       </div>
-      <div className="mt-3 flex items-start justify-between gap-4">
-        <LinkedInMark className="size-11 shrink-0" />
+      <div className="mt-4 flex gap-3">
+        <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-bg-elev">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/post-default.jpg" alt="" className="size-full object-cover" />
+        </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">Link #21</p>
-          <p className="mt-0.5 flex items-center gap-1 text-sm text-ink-mid">
-            8 years old · seller Payal <BadgeCheck className="size-4 text-brand-mint" aria-label="Reviewed seller" />
+          <div className="flex items-start justify-between gap-3">
+            <p className="truncate font-semibold">Link</p>
+            <p className="shrink-0 text-xl font-bold tabular-nums">$50.00</p>
+          </div>
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-mid">
+            <span className="inline-flex items-center gap-1">
+              Payal
+              <BadgeCheck className="size-3.5 text-brand-mint" aria-label="Reviewed seller" />
+            </span>
+            <span className="text-line" aria-hidden="true">·</span>
+            <span className="tabular-nums">300 connects</span>
           </p>
         </div>
-        <p className="text-xl font-bold tabular-nums">$50.00</p>
       </div>
 
       <ol className="mt-5 space-y-3 border-t border-line pt-5 text-sm">
@@ -232,23 +241,33 @@ export default async function Landing() {
             <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {data.latest.map((p) => (
                 <li key={p.id}>
-                  <Link href="/register" className="panel group flex h-full gap-4 p-4 transition-shadow hover:shadow-lift">
-                    <div className="size-20 shrink-0 overflow-hidden rounded-lg">
-                      <PostImage image={p.image as ImageInfo | null} title={p.title} />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <p className="line-clamp-2 font-semibold group-hover:text-brand-mint">{p.name || p.title}</p>
-                      <p className="mt-1 text-xs text-ink-lo">
-                        {p.client.name} · {p.connects} connects
-                      </p>
-                      <div className="mt-auto flex items-center justify-between pt-3">
-                        <span className="text-lg font-bold tabular-nums">{formatPrice(p.price)}</span>
-                        {p.status === 'PROGRESSING' ? (
-                          <span className="text-xs font-medium text-brand-purple">On hold</span>
-                        ) : (
-                          <span className="text-xs font-medium text-brand-mint">Available</span>
-                        )}
+                  <Link href="/register" className="panel group flex h-full flex-col p-4 transition-shadow hover:shadow-lift">
+                    <div className="flex gap-3">
+                      <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-bg-elev">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={(p.image as ImageInfo | null)?.url || '/post-default.jpg'} alt={p.title} className="size-full object-cover" />
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="truncate font-semibold group-hover:text-brand-mint">{p.name || p.title}</p>
+                          <p className="shrink-0 text-lg font-bold tabular-nums">{formatPrice(p.price)}</p>
+                        </div>
+                        <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-mid">
+                          <span className="inline-flex items-center gap-1">
+                            {p.client.name}
+                            <BadgeCheck className="size-3.5 text-brand-mint" aria-label="Reviewed seller" />
+                          </span>
+                          <span className="text-line" aria-hidden="true">·</span>
+                          <span className="tabular-nums">{p.connects} connects</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end border-t border-line pt-3">
+                      {p.status === 'PROGRESSING' ? (
+                        <span className="text-xs font-medium text-brand-purple">On hold</span>
+                      ) : (
+                        <span className="text-xs font-medium text-brand-mint">Available</span>
+                      )}
                     </div>
                   </Link>
                 </li>
@@ -359,16 +378,38 @@ export default async function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-line">
-        <div className={`${wrap} flex flex-col items-start justify-between gap-4 py-8 text-sm text-ink-lo sm:flex-row sm:items-center`}>
-          <Logo />
-          <nav className="flex gap-6">
-            <a href="#how" className="hover:text-ink-hi">How it works</a>
-            <a href="#safety" className="hover:text-ink-hi">Safety</a>
-            <a href="#faq" className="hover:text-ink-hi">FAQ</a>
-            <Link href="/login" className="hover:text-ink-hi">Log in</Link>
-          </nav>
-          <span>© {new Date().getFullYear()}</span>
+      <footer className="border-t border-line bg-bg-deep">
+        <div className={`${wrap} grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]`}>
+          <div>
+            <Logo />
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-mid">
+              Reviewed links from real sellers. Each one is checked, held for one buyer, and confirmed in chat.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-lo">Support</p>
+            <p className="mt-3 text-sm leading-relaxed text-ink-mid">Questions or a problem with a link? Write the support team.</p>
+            <a href="mailto:support@inonlink.com" className="mt-2 inline-block text-sm font-semibold text-brand-mint hover:underline">
+              support@inonlink.com
+            </a>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-lo">On this page</p>
+            <nav className="mt-3 flex flex-col gap-2 text-sm text-ink-mid">
+              <a href="#listings" className="hover:text-ink-hi">Latest links</a>
+              <a href="#how" className="hover:text-ink-hi">How it works</a>
+              <a href="#safety" className="hover:text-ink-hi">Safety</a>
+              <a href="#faq" className="hover:text-ink-hi">FAQ</a>
+              <Link href="/login" className="hover:text-ink-hi">Log in</Link>
+              <Link href="/register" className="hover:text-ink-hi">Sign up</Link>
+            </nav>
+          </div>
+        </div>
+        <div className="border-t border-line">
+          <div className={`${wrap} flex flex-col gap-2 py-5 text-xs text-ink-lo sm:flex-row sm:items-center sm:justify-between`}>
+            <span>© {new Date().getFullYear()} inonlink</span>
+            <span>Support replies at support@inonlink.com</span>
+          </div>
         </div>
       </footer>
     </div>
