@@ -18,10 +18,16 @@ export const loginSchema = z.object({ email, password: z.string().min(1).max(200
 
 export const registerSchema = z.object({ name, email, password, image: imageSchema.nullish() });
 
+export const paymentAddressSchema = z.object({
+  type: z.string().trim().min(1, 'Payment type is required.').max(40, 'Payment type must be 40 characters or less.'),
+  address: z.string().trim().min(1, 'Payment address is required.').max(300, 'Payment address must be 300 characters or less.'),
+});
+
 export const profileSchema = z.object({
   name: name.optional(),
   email: email.optional(),
   image: imageSchema.nullish(),
+  paymentAddresses: z.array(paymentAddressSchema).max(20).optional(),
 });
 
 export const passwordChangeSchema = z.object({
@@ -40,6 +46,7 @@ export const adminCreateUserSchema = z.object({
   s_counts: count.optional(),
   b_counts: count.optional(),
   cartLimit: z.coerce.number().int().min(0).max(1000).optional(),
+  paymentAddresses: z.array(paymentAddressSchema).max(20).optional(),
 });
 
 export const adminUpdateUserSchema = z.object({
@@ -50,6 +57,7 @@ export const adminUpdateUserSchema = z.object({
   s_counts: count.optional(),
   b_counts: count.optional(),
   cartLimit: z.coerce.number().int().min(0).max(1000).optional(),
+  paymentAddresses: z.array(paymentAddressSchema).max(20).optional(),
 });
 
 export const adminUsersQuery = z.object({
@@ -84,11 +92,24 @@ export const postStatusQuery = z.object({
   status: z.enum(['REQUESTED', 'PUBLISHED', 'PROGRESSING', 'COMPLETED']).optional(),
 });
 
+const requestPrice = z.coerce
+  .number()
+  .min(0, 'Price must be 0 or more.')
+  .max(10_000_000, 'Price is too large.')
+  .transform((v) => Math.round(v * 100) / 100);
+
 export const clientPostsSchema = z.object({
-  titles: z
-    .array(z.string())
-    .transform((arr) => arr.map((t) => t.trim()).filter((t) => t.length > 0))
-    .pipe(z.array(z.string().max(300, 'Each line must be 300 characters or less.')).min(1, 'Add at least one line.').max(50)),
+  posts: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1, 'Link is required.').max(300, 'Link must be 300 characters or less.'),
+        name: z.string().trim().min(1, 'Name is required.').max(120, 'Name must be 120 characters or less.'),
+        connects: z.coerce.number().int().min(0, 'Connects must be 0 or more.').max(1_000_000, 'Connects is too large.'),
+        price: requestPrice,
+      }),
+    )
+    .min(1, 'Add at least one link.')
+    .max(50),
 });
 
 export const checkUrlSchema = z.object({

@@ -38,8 +38,8 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
   const result = await prisma.$transaction(async (tx) => {
     // Lock the post row: a concurrent expiry waits for us (or we see its result), and two
     // submits for the same post are serialized.
-    const locked = await tx.$queryRaw<{ id: string; clientId: string; title: string }[]>`
-      SELECT id, "clientId", title FROM "Post"
+    const locked = await tx.$queryRaw<{ id: string; clientId: string; title: string; name: string | null }[]>`
+      SELECT id, "clientId", title, name FROM "Post"
       WHERE id = ${postId} AND status = 'PROGRESSING' AND "holderId" = ${customer.id}
         AND "progressingExpiresAt" > ${DB_NOW}
       FOR UPDATE`;
@@ -83,13 +83,17 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
       checkSubmissionId: check.id,
     });
 
-    await notify(tx, out, { userId: post.clientId }, {
-      type: 'CHECK_SUBMITTED',
-      title: `${customer.name} sent checking info for ${post.title}`,
-      body: url,
+    const label = post.name?.trim() || post.title;
+    const note = {
+      type: 'CHECK_SUBMITTED' as const,
+      title: `${customer.name} sent a confirm URL`,
+      body: `"${label}" · ${url}`,
       postId,
       conversationId: conv.id,
-    });
+    };
+    await notify(tx, out, { userId: post.clientId }, note);
+    const admins = await tx.admin.findMany({ select: { id: true } });
+    for (const admin of admins) await notify(tx, out, { adminId: admin.id }, note);
 
     out.push(checkRooms(post.clientId, customer.id), 'check:updated', { check: toCheckDTO(check), conversationId: conv.id });
     out.push([rooms.user(post.clientId), rooms.user(customer.id)], 'conversation:updated', { conversationId: conv.id });

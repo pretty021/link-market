@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { addToCart, confirmPost, expireDue, getCart } from '@/server/services/posts';
 import { markChecked, markNotChecked, submitCheck } from '@/server/services/checks';
 import { sendMessage } from '@/server/services/chat';
-import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn } from './helpers';
+import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -64,12 +64,16 @@ describe('countdown expiry', () => {
 });
 
 describe('checking info', () => {
-  it('notifies the Client with CHECK_SUBMITTED when a Customer submits', async () => {
+  it('notifies the Client and every Admin when a Customer sends a confirm URL', async () => {
     const { client, holder, post } = await setup();
+    const admin = await makeAdmin();
     const { conversationId } = await submitCheck(holder, post.id, 'https://example.com/proof');
     const n = await prisma.notification.findFirstOrThrow({ where: { userId: client.id, type: 'CHECK_SUBMITTED' } });
-    expect(n.title).toBe(`${holder.name} sent checking info for Account #1042`);
+    expect(n.title).toBe(`${holder.name} sent a confirm URL`);
+    expect(n.body).toBe('"Account #1042" · https://example.com/proof');
     expect(n.conversationId).toBe(conversationId);
+    const adminNote = await prisma.notification.findFirstOrThrow({ where: { adminId: admin.id, type: 'CHECK_SUBMITTED' } });
+    expect(adminNote).toMatchObject({ title: n.title, body: n.body, conversationId });
 
     const msg = await prisma.message.findFirstOrThrow({ where: { conversationId, type: 'CHECK_REQUEST' } });
     expect(msg.body).toBe('https://example.com/proof');

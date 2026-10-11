@@ -46,6 +46,7 @@ export type Me =
       s_counts?: number;
       b_counts?: number;
       cartLimit?: number;
+      paymentAddresses?: PaymentAddress[];
     };
 
 export type UserRow = {
@@ -61,7 +62,10 @@ export type UserRow = {
   s_counts?: number;
   b_counts?: number;
   cartLimit?: number;
+  paymentAddresses?: { id: string; type: string; address: string }[];
 };
+
+export type PaymentAddress = { id: string; type: string; address: string };
 
 export type Check = {
   id: string;

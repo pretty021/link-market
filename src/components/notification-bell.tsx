@@ -13,6 +13,7 @@ import { useToast } from './providers/toast';
 
 function targetFor(n: Notification, home: string) {
   if (n.conversationId) return `/chat?c=${n.conversationId}`;
+  if (n.type === 'POST_PROGRESSING') return '/admin/posts';
   return home;
 }
 
@@ -52,6 +53,11 @@ export function NotificationBell() {
     }
     router.push(targetFor(n, home));
   }
+
+  useSocketEvent<{ conversationId: string }>('notifications:read', ({ conversationId }) => {
+    setItems((prev) => prev.map((x) => (x.conversationId === conversationId && x.type === 'NEW_MESSAGE' && !x.readAt ? { ...x, readAt: new Date().toISOString() } : x)));
+    refreshCount();
+  });
 
   useSocketEvent<{ notification: Notification }>('notification:new', ({ notification: n }) => {
     setCount((c) => c + 1);
@@ -110,7 +116,7 @@ export function NotificationBell() {
                 <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', n.readAt ? 'bg-transparent' : 'bg-brand-mint')} />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-ink-hi">{n.title}</p>
-                  {n.body && <p className="mt-0.5 truncate text-xs text-ink-mid">{n.body}</p>}
+                  {n.body && <p className="mt-0.5 line-clamp-2 break-all text-xs text-ink-mid">{n.body}</p>}
                   <p className="mt-1 text-[11px] text-ink-lo">{timeAgo(n.createdAt)}</p>
                 </div>
               </Menu.Item>

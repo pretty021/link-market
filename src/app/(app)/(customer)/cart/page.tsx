@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye, Link2, MessageCircle, Send, ShoppingCart, Trash2, X } from 'lucide-react';
+import { Copy, Eye, Link2, MessageCircle, Send, ShoppingCart, Trash2, X } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { Countdown, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
@@ -13,10 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge, Card, Empty, Field, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
-import type { CheckStatus, Post } from '@/lib/client/types';
+import type { CheckStatus, PaymentAddress, Post } from '@/lib/client/types';
 import { formatPrice } from '@/lib/utils';
 
-type Item = { addedAt: string; post: Post; heldByMe: boolean; latestCheckStatus: CheckStatus | null; conversationId: string | null };
+type Item = { addedAt: string; post: Post; heldByMe: boolean; payments?: PaymentAddress[]; latestCheckStatus: CheckStatus | null; conversationId: string | null };
 type CartData = { items: Item[]; count: number; cartLimit: number };
 
 export default function CartPage() {
@@ -81,9 +81,9 @@ export default function CartPage() {
     inFlight.current.add(id);
     setConfirming(id);
     try {
-      const r = await api<{ post: Post }>(`/api/posts/${id}/confirm`, { method: 'POST' });
+      const r = await api<{ post: Post; payments: PaymentAddress[] }>(`/api/posts/${id}/confirm`, { method: 'POST' });
       patchPost(r.post);
-      setData((d) => d && { ...d, items: d.items.map((i) => (i.post.id === id ? { ...i, heldByMe: true, latestCheckStatus: null } : i)) });
+      setData((d) => d && { ...d, items: d.items.map((i) => (i.post.id === id ? { ...i, heldByMe: true, payments: r.payments, latestCheckStatus: null } : i)) });
       setDialogPostId(id);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
@@ -214,6 +214,7 @@ function ConfirmDialog({
   cancelling: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -222,6 +223,15 @@ function ConfirmDialog({
     setUrl('');
     setError(null);
   }, [item?.post.id]);
+
+  async function copyAddress(address: string) {
+    try {
+      await navigator.clipboard.writeText(address);
+      toast({ title: 'Copied', tone: 'success' });
+    } catch {
+      toast({ title: 'Could not copy.', tone: 'error' });
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -254,6 +264,26 @@ function ConfirmDialog({
               <p className="text-[11px] text-ink-lo">Time left</p>
               <Countdown expiresAt={item.post.progressingExpiresAt} paused={!!item.post.progressingPausedAt} onDone={onExpired} className="mt-1 self-start" />
             </div>
+          </div>
+          <div className="mt-4 rounded-xl border border-line bg-bg-base/60 p-3">
+            <p className="text-[11px] text-ink-lo">Pay the client</p>
+            {(item.payments ?? []).length === 0 ? (
+              <p className="mt-1 text-sm text-ink-mid">This client has no payment address yet.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {item.payments!.map((pay) => (
+                  <li key={pay.id} className="flex items-start gap-2 rounded-lg bg-bg-card px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-brand-mint">{pay.type}</p>
+                      <p className="mt-0.5 break-all font-mono text-sm text-ink-hi">{pay.address}</p>
+                    </div>
+                    <Button type="button" size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Copy ${pay.type} address`} title="Copy" onClick={() => void copyAddress(pay.address)}>
+                      <Copy />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <form onSubmit={submit} className="mt-5 space-y-3">
             <Field label="Checking link" htmlFor="check-url" error={error ?? undefined}>

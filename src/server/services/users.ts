@@ -106,11 +106,18 @@ export async function getMe(actor: Actor) {
     const a = await prisma.admin.findUniqueOrThrow({ where: { id: actor.id } });
     return { kind: 'admin' as const, id: a.id, name: a.name, email: a.email };
   }
-  const u = await prisma.user.findUniqueOrThrow({ where: { id: actor.id } });
-  return { kind: 'user' as const, ...toUserDTO(u) };
+  const u = await prisma.user.findUniqueOrThrow({
+    where: { id: actor.id },
+    include: { paymentAddresses: { orderBy: { createdAt: 'asc' }, select: { id: true, type: true, address: true } } },
+  });
+  const dto = { kind: 'user' as const, ...toUserDTO(u) };
+  return u.role === 'CLIENT' ? { ...dto, paymentAddresses: u.paymentAddresses } : dto;
 }
 
-export async function updateProfile(actor: Actor, data: { name?: string; email?: string; image?: ImageInfo | null }) {
+export async function updateProfile(
+  actor: Actor,
+  data: { name?: string; email?: string; image?: ImageInfo | null; paymentAddresses?: PaymentInput[] },
+) {
   if (data.email) {
     await assertEmailFree(data.email, actor.kind === 'user' ? actor.id : undefined, actor.kind === 'admin' ? actor.id : undefined);
   }
@@ -136,6 +143,7 @@ export async function updateProfile(actor: Actor, data: { name?: string; email?:
       throw uniqueViolation(e);
     });
   await replaceImageCleanup(before.image as ImageInfo | null, data.image);
+  if (before.role === 'CLIENT' && data.paymentAddresses) await replacePayments(actor.id, data.paymentAddresses);
   return getMe(actor);
 }
 
@@ -166,10 +174,15 @@ export async function listUsers(role?: Role, q?: string) {
       ...(role ? { role } : {}),
       ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : {}),
     },
+    include: { paymentAddresses: { orderBy: { createdAt: 'asc' }, select: { id: true, type: true, address: true } } },
     orderBy: { createdAt: 'desc' },
   });
-  return users.map(toUserDTO);
+  return users.map((u) =>
+    u.role === 'CLIENT' ? { ...toUserDTO(u), paymentAddresses: u.paymentAddresses } : toUserDTO(u),
+  );
 }
+
+type PaymentInput = { type: string; address: string };
 
 type AdminUserInput = {
   name?: string;
@@ -179,7 +192,17 @@ type AdminUserInput = {
   s_counts?: number;
   b_counts?: number;
   cartLimit?: number;
+  paymentAddresses?: PaymentInput[];
 };
+
+async function replacePayments(clientId: string, addresses: PaymentInput[]) {
+  await prisma.$transaction([
+    prisma.paymentAddress.deleteMany({ where: { clientId } }),
+    ...(addresses.length
+      ? [prisma.paymentAddress.createMany({ data: addresses.map((a) => ({ clientId, type: a.type, address: a.address })) })]
+      : []),
+  ]);
+}
 
 /** Drop fields that don't belong to the role (b_counts/cartLimit are Customer-only, s_counts Client-only). */
 function roleFields(role: Role, d: AdminUserInput) {
@@ -205,6 +228,7 @@ export async function createUser(admin: AdminActor, d: AdminUserInput & { role: 
     .catch((e) => {
       throw uniqueViolation(e);
     });
+  if (d.role === 'CLIENT' && d.paymentAddresses) await replacePayments(user.id, d.paymentAddresses);
   emit(rooms.admins, 'presence:update', { stats: await adminStats() });
   return toUserDTO(user);
 }
@@ -228,6 +252,7 @@ export async function updateUser(userId: string, d: AdminUserInput) {
       throw uniqueViolation(e);
     });
   await replaceImageCleanup(before.image as ImageInfo | null, d.image);
+  if (before.role === 'CLIENT' && d.paymentAddresses) await replacePayments(user.id, d.paymentAddresses);
   const dto = toUserDTO(user);
   emit(rooms.user(userId), 'me:updated', { me: { kind: 'user', ...dto } });
   return dto;

@@ -97,6 +97,7 @@ export function UserTable({ role }: { role: Role }) {
                 <th className="px-4 py-3 font-medium">User</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 text-right font-medium">{isClient ? 'Sold' : 'Buy'}</th>
+                {isClient && <th className="px-4 py-3 text-right font-medium">Payments</th>}
                 {!isClient && <th className="px-4 py-3 text-right font-medium">Cart limit</th>}
                 <th className="px-4 py-3 font-medium">Last seen</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
@@ -122,6 +123,7 @@ export function UserTable({ role }: { role: Role }) {
                     {u.isBlocked ? <Badge tone="red">Blocked</Badge> : u.online ? <Badge tone="mint">Online</Badge> : <Badge>Offline</Badge>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">{isClient ? completed.filter((p) => p.clientId === u.id).length : (u.b_counts ?? 0)}</td>
+                  {isClient && <td className="px-4 py-3 text-right tabular-nums">{u.paymentAddresses?.length ?? 0}</td>}
                   {!isClient && <td className="px-4 py-3 text-right tabular-nums">{u.cartLimit}</td>}
                   <td className="px-4 py-3 text-xs text-ink-lo">{u.lastSeenAt ? timeAgo(u.lastSeenAt) : 'Never'}</td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -199,6 +201,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
   const isNew = user === 'new';
   const isClient = role === 'CLIENT';
   const [form, setForm] = useState({ name: '', email: '', password: '', count: '0', cartLimit: '1' });
+  const [addresses, setAddresses] = useState<{ type: string; address: string }[]>([]);
   const [image, setImage] = useState<ImageInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -208,6 +211,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
     setError(null);
     if (user === 'new') {
       setForm({ name: '', email: '', password: '', count: '0', cartLimit: '1' });
+      setAddresses([]);
       setImage(null);
     } else {
       setForm({
@@ -217,6 +221,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
         count: String((isClient ? user.s_counts : user.b_counts) ?? 0),
         cartLimit: String(user.cartLimit ?? 1),
       });
+      setAddresses((user.paymentAddresses ?? []).map(({ type, address }) => ({ type, address })));
       setImage(user.image);
     }
   }, [user, isClient]);
@@ -225,7 +230,14 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const counts = isClient ? {} : { b_counts: Number(form.count), cartLimit: Number(form.cartLimit) };
+    const filled = addresses.filter((a) => a.type.trim() || a.address.trim());
+    if (isClient && filled.some((a) => !a.type.trim() || !a.address.trim())) {
+      setError('Each payment address needs a type and an address.');
+      setBusy(false);
+      return;
+    }
+    const paymentAddresses = filled.map((a) => ({ type: a.type.trim(), address: a.address.trim() }));
+    const counts = isClient ? { paymentAddresses } : { b_counts: Number(form.count), cartLimit: Number(form.cartLimit) };
     try {
       if (isNew) {
         await api('/api/admin/users', { json: { role, name: form.name, email: form.email, password: form.password, image, ...counts } });
@@ -249,7 +261,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
 
   return (
     <Dialog open={!!user} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={`${isNew ? 'New' : 'Edit'} ${isClient ? 'client' : 'customer'}`}>
+      <DialogContent title={`${isNew ? 'New' : 'Edit'} ${isClient ? 'client' : 'customer'}`} className={isClient ? 'max-w-xl' : undefined}>
         <form onSubmit={submit} className="space-y-4">
           <ImageUpload value={image} onChange={setImage} label="Upload photo" round />
           <Field label="Name" htmlFor="u-name"><Input id="u-name" required maxLength={100} value={form.name} onChange={set('name')} /></Field>
@@ -257,6 +269,41 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
           <Field label={isNew ? 'Password (at least 8 characters)' : 'New password (leave empty to keep)'} htmlFor="u-pass">
             <Input id="u-pass" type="password" minLength={8} required={isNew} value={form.password} onChange={set('password')} autoComplete="new-password" />
           </Field>
+          {isClient && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-ink-hi">Payment addresses</p>
+                <Button type="button" size="sm" variant="outline" onClick={() => setAddresses((rows) => [...rows, { type: '', address: '' }])}>
+                  <Plus /> Add
+                </Button>
+              </div>
+              {addresses.length === 0 ? (
+                <p className="text-xs text-ink-lo">None yet. A client can have more than one.</p>
+              ) : (
+                addresses.map((row, i) => (
+                  <div key={i} className="grid grid-cols-[minmax(0,8rem)_1fr_auto] gap-2">
+                    <Input
+                      aria-label="Payment type"
+                      placeholder="Type"
+                      maxLength={40}
+                      value={row.type}
+                      onChange={(e) => setAddresses((rows) => rows.map((r, n) => (n === i ? { ...r, type: e.target.value } : r)))}
+                    />
+                    <Input
+                      aria-label="Payment address"
+                      placeholder="Address"
+                      maxLength={300}
+                      value={row.address}
+                      onChange={(e) => setAddresses((rows) => rows.map((r, n) => (n === i ? { ...r, address: e.target.value } : r)))}
+                    />
+                    <Button type="button" size="sm" variant="ghost" className="text-state-err" aria-label="Remove payment address" onClick={() => setAddresses((rows) => rows.filter((_, n) => n !== i))}>
+                      <Trash2 />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
           {!isClient && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Buy" htmlFor="u-count">

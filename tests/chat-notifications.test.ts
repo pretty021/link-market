@@ -33,7 +33,7 @@ describe('chat notifications', () => {
     const file = await prisma.notification.findFirstOrThrow({
       where: { userId: customer.id, conversationId, body: { startsWith: 'Sent a file' } },
     });
-    expect(file.body).toBe('Sent a file: photo.png - see attached');
+    expect(file.body).toBe('Test post: Sent a file: photo.png - see attached');
 
     await sendMessage(customer, conversationId, 'thanks');
     expect(await unreadNewMessages({ userId: client.id }, conversationId)).toBe(1);

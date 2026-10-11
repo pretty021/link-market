@@ -9,7 +9,7 @@ import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime'
 import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Avatar, Badge, Card, CardHeader, Empty, Input, Spinner } from '@/components/ui/primitives';
+import { Avatar, Badge, Card, CardHeader, Empty, Field, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import type { ImageInfo, Post } from '@/lib/client/types';
 import { cn, formatPrice, timeAgo } from '@/lib/utils';
@@ -239,27 +239,46 @@ function LinkItem({ post, flash, onExpired }: { post: Post; flash: boolean; onEx
   );
 }
 
+type RequestDraft = { id: number; title: string; name: string; connects: string; price: string };
+
+function blankRequest(): RequestDraft {
+  return { id: Date.now() + Math.floor(Math.random() * 1000), title: '', name: '', connects: '', price: '' };
+}
+
 function PostRequestDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (p: Post[]) => void }) {
   const toast = useToast();
-  const [lines, setLines] = useState<{ id: number; value: string }[]>([{ id: 1, value: '' }]);
+  const [rows, setRows] = useState<RequestDraft[]>([blankRequest()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
-      setLines([{ id: Date.now(), value: '' }]);
+      setRows([blankRequest()]);
       setError(null);
     }
   }, [open]);
 
+  function patch(id: number, key: keyof Omit<RequestDraft, 'id'>, value: string) {
+    setRows((list) => list.map((row) => (row.id === id ? { ...row, [key]: value } : row)));
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const titles = lines.map((l) => l.value.trim()).filter(Boolean);
-    if (titles.length === 0) return setError('Add at least one line.');
+    const filled = rows.filter((row) => row.title.trim() || row.name.trim() || row.connects.trim() || row.price.trim());
+    if (filled.length === 0) return setError('Add at least one link.');
+    if (filled.some((row) => !row.title.trim() || !row.name.trim() || row.connects.trim() === '' || row.price.trim() === '')) {
+      return setError('Each link needs a link, name, connects, and price.');
+    }
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ posts: Post[] }>('/api/client/posts', { json: { titles } });
+      const posts = filled.map((row) => ({
+        title: row.title.trim(),
+        name: row.name.trim(),
+        connects: Number(row.connects),
+        price: Number(row.price),
+      }));
+      const r = await api<{ posts: Post[] }>('/api/client/posts', { json: { posts } });
       onCreated(r.posts);
       toast({ title: `${r.posts.length} link${r.posts.length === 1 ? '' : 's'} requested`, body: 'The admin will review them shortly.', tone: 'success' });
       onClose();
@@ -272,32 +291,76 @@ function PostRequestDialog({ open, onClose, onCreated }: { open: boolean; onClos
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="Link Request" description="One line per link.">
+      <DialogContent title="Link Request" description="Name, connects, and price for each link." className="max-w-xl">
         <form onSubmit={submit} className="space-y-3">
-          {lines.map((l, i) => (
-            <div key={l.id} className="flex gap-2">
-              <Input
-                autoFocus={i === lines.length - 1}
-                placeholder={'http://linkedin.com/in/usernames'}
-                maxLength={300}
-                value={l.value}
-                onChange={(e) => setLines(lines.map((x) => (x.id === l.id ? { ...x, value: e.target.value } : x)))}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-10 shrink-0"
-                aria-label="Remove line"
-                disabled={lines.length === 1}
-                onClick={() => setLines(lines.filter((x) => x.id !== l.id))}
-              >
-                <Trash2 />
-              </Button>
+          {rows.map((row, i) => (
+            <div key={row.id} className="rounded-xl border border-line bg-bg-base/40 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-ink-mid">Link {i + 1}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-state-err"
+                  aria-label="Remove link"
+                  disabled={rows.length === 1}
+                  onClick={() => setRows(rows.filter((x) => x.id !== row.id))}
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+              <div className="space-y-3">
+                <Field label="Link" htmlFor={`req-title-${row.id}`}>
+                  <Input
+                    id={`req-title-${row.id}`}
+                    autoFocus={i === rows.length - 1}
+                    placeholder="http://linkedin.com/in/usernames"
+                    maxLength={300}
+                    required
+                    value={row.title}
+                    onChange={(e) => patch(row.id, 'title', e.target.value)}
+                  />
+                </Field>
+                <Field label="Name" htmlFor={`req-name-${row.id}`}>
+                  <Input
+                    id={`req-name-${row.id}`}
+                    placeholder="Robert George"
+                    maxLength={120}
+                    required
+                    value={row.name}
+                    onChange={(e) => patch(row.id, 'name', e.target.value)}
+                  />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Connects" htmlFor={`req-connects-${row.id}`}>
+                    <Input
+                      id={`req-connects-${row.id}`}
+                      type="number"
+                      min={0}
+                      step={1}
+                      required
+                      value={row.connects}
+                      onChange={(e) => patch(row.id, 'connects', e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Price ($)" htmlFor={`req-price-${row.id}`}>
+                    <Input
+                      id={`req-price-${row.id}`}
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="50.00"
+                      required
+                      value={row.price}
+                      onChange={(e) => patch(row.id, 'price', e.target.value)}
+                    />
+                  </Field>
+                </div>
+              </div>
             </div>
           ))}
-          <Button type="button" variant="outline" size="sm" disabled={lines.length >= 50} onClick={() => setLines([...lines, { id: Date.now(), value: '' }])}>
-            <Plus /> Add line
+          <Button type="button" variant="outline" size="sm" disabled={rows.length >= 50} onClick={() => setRows([...rows, blankRequest()])}>
+            <Plus /> Add link
           </Button>
           {error && <p className="text-sm text-state-err">{error}</p>}
           <Button type="submit" className="w-full" loading={busy}>Submit</Button>

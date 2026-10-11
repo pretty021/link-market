@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { KeyRound, UserRound } from 'lucide-react';
+import { KeyRound, Plus, Trash2, UserRound } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { ImageUpload } from '@/components/post-bits';
 import { useMe } from '@/components/providers/session';
@@ -22,20 +22,49 @@ export default function ProfilePage() {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
   const [sold, setSold] = useState(0);
+  const [addresses, setAddresses] = useState<{ type: string; address: string }[]>([]);
+  const [addressesReady, setAddressesReady] = useState(false);
+  const isClient = me.kind === 'user' && me.role === 'CLIENT';
 
   useEffect(() => {
-    if (me.kind !== 'user' || me.role !== 'CLIENT') return;
+    if (!isClient) return;
     api<{ posts: Post[] }>('/api/client/posts')
       .then((r) => setSold(r.posts.filter((p) => p.status === 'COMPLETED').length))
       .catch(() => setSold(0));
-  }, [me]);
+  }, [isClient]);
+
+  useEffect(() => {
+    if (!isClient) return;
+    api<{ me: Me }>('/api/me')
+      .then((r) => {
+        if (r.me.kind === 'user') setAddresses((r.me.paymentAddresses ?? []).map(({ type, address }) => ({ type, address })));
+      })
+      .catch(() => undefined)
+      .finally(() => setAddressesReady(true));
+  }, [isClient]);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
+    if (isClient) {
+      const filled = addresses.filter((a) => a.type.trim() || a.address.trim());
+      if (filled.some((a) => !a.type.trim() || !a.address.trim())) {
+        toast({ title: 'Each payment address needs a type and an address.', tone: 'error' });
+        return;
+      }
+    }
     setSaving(true);
     try {
-      const r = await api<{ me: Me }>('/api/me', { method: 'PATCH', json: { name, email, ...(me.kind === 'user' ? { image } : {}) } });
+      const paymentAddresses = addresses
+        .filter((a) => a.type.trim() && a.address.trim())
+        .map((a) => ({ type: a.type.trim(), address: a.address.trim() }));
+      const r = await api<{ me: Me }>('/api/me', {
+        method: 'PATCH',
+        json: { name, email, ...(me.kind === 'user' ? { image } : {}), ...(isClient && addressesReady ? { paymentAddresses } : {}) },
+      });
       setMe(r.me);
+      if (r.me.kind === 'user' && r.me.paymentAddresses) {
+        setAddresses(r.me.paymentAddresses.map(({ type, address }) => ({ type, address })));
+      }
       toast({ title: 'Profile saved', tone: 'success' });
     } catch (err) {
       toast({ title: err instanceof ApiError ? err.message : 'Could not save.', tone: 'error' });
@@ -92,6 +121,43 @@ export default function ProfilePage() {
                     <p className="mt-0.5 text-xl font-bold tabular-nums">{c.value}</p>
                   </div>
                 ))}
+              </div>
+            )}
+            {isClient && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-ink-hi">Payment addresses</p>
+                  <Button type="button" size="sm" variant="outline" disabled={!addressesReady} onClick={() => setAddresses((rows) => [...rows, { type: '', address: '' }])}>
+                    <Plus /> Add
+                  </Button>
+                </div>
+                {!addressesReady ? (
+                  <p className="text-xs text-ink-lo">Loading payment addresses…</p>
+                ) : addresses.length === 0 ? (
+                  <p className="text-xs text-ink-lo">None yet. You can add more than one.</p>
+                ) : (
+                  addresses.map((row, i) => (
+                    <div key={i} className="grid grid-cols-[minmax(0,8rem)_1fr_auto] gap-2">
+                      <Input
+                        aria-label="Payment type"
+                        placeholder="Type"
+                        maxLength={40}
+                        value={row.type}
+                        onChange={(e) => setAddresses((rows) => rows.map((r, n) => (n === i ? { ...r, type: e.target.value } : r)))}
+                      />
+                      <Input
+                        aria-label="Payment address"
+                        placeholder="Address"
+                        maxLength={300}
+                        value={row.address}
+                        onChange={(e) => setAddresses((rows) => rows.map((r, n) => (n === i ? { ...r, address: e.target.value } : r)))}
+                      />
+                      <Button type="button" size="sm" variant="ghost" className="text-state-err" aria-label="Remove payment address" onClick={() => setAddresses((rows) => rows.filter((_, n) => n !== i))}>
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  ))
+                )}
               </div>
             )}
             <Button type="submit" loading={saving}>Save profile</Button>

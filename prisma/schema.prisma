@@ -48,13 +48,14 @@ enum MessageType {
 }
 
 enum NotificationType {
-  CHECK_SUBMITTED   // to the Client: a Customer sent checking info (links to the deal chat)
+  CHECK_SUBMITTED   // to the Client and every Admin: a Customer sent a confirm URL (links to the deal chat)
   CHECK_CHECKED     // to the Customer: the Client clicked Checked
   CHECK_NOT_CHECKED // to the Customer: the Client clicked Not checked
   POST_EXPIRED      // to the former holder and the Client: countdown ran out
   POST_ACCEPTED     // to the Client: Admin accepted the post
   POST_REQUESTED    // to every Admin: a Client submitted one or more post requests
   POST_DELETED      // to the Client: an Admin deleted their post request
+  POST_PROGRESSING  // to every Admin: a Customer confirmed a link (5-minute hold)
   NEW_MESSAGE       // to a participant who is not looking at the chat
 }
 
@@ -111,9 +112,23 @@ model User {
   participations   ConversationParticipant[]
   messages         Message[]
   notifications    Notification[]
+  paymentAddresses PaymentAddress[]
 
   @@index([role, isBlocked])
   @@index([role, lastSeenAt])
+}
+
+// A Client can have several ways to be paid. Set by an Admin. Shown to the Customer
+// who is holding one of that Client's links during the 5-minute countdown.
+model PaymentAddress {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type      String
+  address   String
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
 }
 
 // Login sessions for both tables. Exactly one of userId / adminId is set.
@@ -141,12 +156,12 @@ model Post {
   id       String     @id @default(cuid())
   clientId String
   client   User       @relation("PostClient", fields: [clientId], references: [id])
-  title    String                         // the one-line input from the request modal (usually the account link)
-  name     String?                        // display name set by the Admin; shown instead of the title when present
+  title    String                         // the link from the request (usually the account URL)
+  name     String?                        // display name; shown instead of the title when present
   visible  Boolean    @default(true)      // Admin can hide an accepted post from Customers (its Client still sees it)
   status   PostStatus @default(REQUESTED) // REQUESTED -> PUBLISHED -> PROGRESSING -> COMPLETED
   image    Json?                          // uploaded image info: { url, key, mimeType, size, width, height }; set by Admin
-  connects Int        @default(0)         // set by Admin
+  connects Int        @default(0)
   price    Float?                         // e.g. 35.01
 
   approval       Boolean       @default(false) // true when an Admin accepts the post

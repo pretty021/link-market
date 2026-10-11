@@ -11,7 +11,7 @@ import {
   updatePostByAdmin,
 } from '@/server/services/posts';
 import { adminPostUpdateSchema } from '@/lib/validation';
-import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb } from './helpers';
+import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -101,5 +101,22 @@ describe('post name', () => {
 
     const cleared = adminPostUpdateSchema.parse({ name: '' });
     expect((await updatePostByAdmin(post.id, cleared)).post.name).toBeNull();
+  });
+});
+
+describe('progressing notification', () => {
+  it('notifies every Admin when a Customer starts progressing', async () => {
+    const admin = await makeAdmin();
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id, 'Account #1042');
+    await addToCartDirect(customer.id, post.id);
+
+    await confirmPost(customer, post.id);
+
+    const n = await prisma.notification.findFirstOrThrow({ where: { adminId: admin.id, type: 'POST_PROGRESSING' } });
+    expect(n.title).toBe(`${customer.name} is progressing`);
+    expect(n.body).toBe('"Account #1042" is on hold for 5 minutes.');
+    expect(n.postId).toBe(post.id);
   });
 });

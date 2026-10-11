@@ -2,7 +2,7 @@ import { Prisma, type ConversationType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { Actor, AdminActor } from '@/lib/actor';
 import { badRequest, conflict, forbidden, notFound } from '@/lib/errors';
-import { isViewingConversation, rooms } from '@/lib/realtime';
+import { emit, isViewingConversation, rooms } from '@/lib/realtime';
 import { readChatFile, storeChatFile, type ChatFile } from '@/lib/storage';
 import { Outbox } from '../outbox';
 import { notify } from './notifications';
@@ -227,12 +227,17 @@ async function postMessage(actor: Actor, conversationId: string, content: { body
   const conv = await loadAccessible(actor, conversationId);
   await assertCanSend(actor, conv);
 
-  // Who is not looking at this chat right now -> gets a NEW_MESSAGE notification.
+  // Support chats stay quiet for someone who already has that chat open.
+  // A customer and client always notify each other, so the bell shows even if the deal chat is open.
   const recipients = conv.participants.filter((p) => (actor.kind === 'admin' ? p.adminId !== actor.id : p.userId !== actor.id));
-  const notViewing: typeof recipients = [];
+  const notifyThese: typeof recipients = [];
   for (const p of recipients) {
+    if (conv.type === 'DEAL') {
+      notifyThese.push(p);
+      continue;
+    }
     const room = p.userId ? rooms.user(p.userId) : rooms.admin(p.adminId!);
-    if (!(await isViewingConversation(room, conversationId))) notViewing.push(p);
+    if (!(await isViewingConversation(room, conversationId))) notifyThese.push(p);
   }
 
   const out = new Outbox();
@@ -249,13 +254,15 @@ async function postMessage(actor: Actor, conversationId: string, content: { body
       where: { conversationId, ...(actor.kind === 'admin' ? { adminId: actor.id } : { userId: actor.id }) },
       data: { lastReadAt: m.createdAt },
     });
-    // Every message notifies each participant who isn't looking at this chat; opening the chat
-    // marks all of that chat's NEW_MESSAGE notifications read at once.
-    for (const p of notViewing) {
+    const linkName = conv.post?.name?.trim() || conv.post?.title;
+    const preview = attachment
+      ? `Sent a file: ${attachment.name}${body ? ` - ${body.slice(0, 100)}` : ''}`
+      : (body ?? '').slice(0, 140);
+    for (const p of notifyThese) {
       await notify(tx, out, p.userId ? { userId: p.userId } : { adminId: p.adminId! }, {
         type: 'NEW_MESSAGE',
         title: `New message from ${actor.name ?? 'Admin'}`,
-        body: attachment ? `Sent a file: ${attachment.name}${body ? ` - ${body.slice(0, 100)}` : ''}` : (body ?? '').slice(0, 140),
+        body: linkName ? `${linkName}: ${preview}` : preview,
         postId: conv.postId,
         conversationId,
       });
@@ -277,9 +284,11 @@ export async function markConversationRead(actor: Actor, conversationId: string)
     // Admins reading someone else's chat must not change anyone's unread counts.
     await prisma.conversationParticipant.updateMany({ where: { conversationId, adminId: actor.id }, data: { lastReadAt: new Date() } });
     await prisma.notification.updateMany({ where: { adminId: actor.id, conversationId, readAt: null, type: 'NEW_MESSAGE' }, data: { readAt: new Date() } });
+    emit(rooms.admin(actor.id), 'notifications:read', { conversationId });
   } else {
     await prisma.conversationParticipant.updateMany({ where: { conversationId, userId: actor.id }, data: { lastReadAt: new Date() } });
     await prisma.notification.updateMany({ where: { userId: actor.id, conversationId, readAt: null, type: 'NEW_MESSAGE' }, data: { readAt: new Date() } });
+    emit(rooms.user(actor.id), 'notifications:read', { conversationId });
   }
 }
 

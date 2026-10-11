@@ -8,6 +8,6 @@ export const GET = route(async (req) => listClientPosts(await requireClient(req)
 
 export const POST = route(async (req) => {
   const client = await requireClient(req);
-  const { titles } = await body(req, clientPostsSchema);
-  return createClientPosts(client, titles);
+  const { posts } = await body(req, clientPostsSchema);
+  return createClientPosts(client, posts);
 });

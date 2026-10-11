@@ -122,7 +122,7 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
     if (fromOther && (document.hidden || !bottom)) {
       pendingRead.current = true;
       if (!bottom) setUnseen((n) => n + 1);
-      // The server counts this open chat as "being viewed", so the bell stays quiet; alert the browser instead.
+      // Tab is in the background: also raise a browser notification. The bell toast is sent separately.
       if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
         const n = new Notification(`New message from ${message.sender!.name}`, {
           body: message.attachment ? `Sent a file: ${message.attachment.name}` : (message.body ?? '').slice(0, 140),

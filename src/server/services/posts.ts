@@ -202,14 +202,32 @@ export async function confirmPost(customer: UserActor, postId: string) {
   const post = await loadPost(prisma, postId);
   const out = new Outbox();
   pushPost(out, post, serverNow);
+  const label = post.name?.trim() || post.title;
+  const admins = await prisma.admin.findMany({ select: { id: true } });
+  await prisma.$transaction(async (tx) => {
+    for (const admin of admins) {
+      await notify(tx, out, { adminId: admin.id }, {
+        type: 'POST_PROGRESSING',
+        title: `${customer.name} is progressing`,
+        body: `"${label}" is on hold for 5 minutes.`,
+        postId,
+      });
+    }
+  });
   out.flush();
 
+  const payments = await prisma.paymentAddress.findMany({
+    where: { clientId: post.clientId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, type: true, address: true },
+  });
   return {
     progressingExpiresAt,
     serverNow,
     client: { name: post.client.name },
     price: post.price,
     post: toPostDTO(post, { staff: false }),
+    payments,
   };
 }
 
@@ -415,11 +433,19 @@ export async function listAdminPosts(status?: PostStatus) {
 
 // ───────────────────────── Client ─────────────────────────
 
-export async function createClientPosts(client: UserActor, titles: string[]) {
+export async function createClientPosts(
+  client: UserActor,
+  items: { title: string; name: string; connects: number; price: number }[],
+) {
   const out = new Outbox();
   const result = await prisma.$transaction(async (tx) => {
     const posts = await Promise.all(
-      titles.map((title) => tx.post.create({ data: { clientId: client.id, title }, include: postInclude })),
+      items.map((item) =>
+        tx.post.create({
+          data: { clientId: client.id, title: item.title, name: item.name, connects: item.connects, price: item.price },
+          include: postInclude,
+        }),
+      ),
     );
     const serverNow = await dbNow(tx);
     const dtos = posts.map((p) => toPostDTO(p, { staff: true }));
@@ -577,7 +603,10 @@ export async function getCart(customer: UserActor) {
     orderBy: { addedAt: 'desc' },
   });
   const heldIds = rows.filter((r) => r.post.holderId === customer.id).map((r) => r.postId);
-  const [checks, convs, user] = await Promise.all([
+  const payingClientIds = [
+    ...new Set(rows.filter((r) => r.post.holderId === customer.id && r.post.status === 'PROGRESSING').map((r) => r.post.clientId)),
+  ];
+  const [checks, convs, user, paymentRows] = await Promise.all([
     prisma.checkSubmission.findMany({
       where: { postId: { in: heldIds }, customerId: customer.id },
       orderBy: { createdAt: 'desc' },
@@ -587,7 +616,18 @@ export async function getCart(customer: UserActor) {
       select: { id: true, postId: true },
     }),
     prisma.user.findUniqueOrThrow({ where: { id: customer.id }, select: { cartLimit: true } }),
+    prisma.paymentAddress.findMany({
+      where: { clientId: { in: payingClientIds } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, clientId: true, type: true, address: true },
+    }),
   ]);
+  const paymentsByClient = new Map<string, { id: string; type: string; address: string }[]>();
+  for (const row of paymentRows) {
+    const list = paymentsByClient.get(row.clientId) ?? [];
+    list.push({ id: row.id, type: row.type, address: row.address });
+    paymentsByClient.set(row.clientId, list);
+  }
 
   const items = rows.map((r) => {
     const held = r.post.holderId === customer.id;
@@ -599,6 +639,7 @@ export async function getCart(customer: UserActor) {
       addedAt: r.addedAt,
       post: toPostDTO(r.post, { staff: false }),
       heldByMe: held,
+      payments: held && r.post.status === 'PROGRESSING' ? (paymentsByClient.get(r.post.clientId) ?? []) : [],
       latestCheckStatus: latest?.status ?? null,
       conversationId: convs.find((c) => c.postId === r.postId)?.id ?? null,
     };
