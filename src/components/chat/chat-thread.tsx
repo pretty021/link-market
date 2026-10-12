@@ -238,6 +238,7 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
               {m.type === 'CHECK_REQUEST' ? (
                 <CheckCard
                   message={m}
+                  post={post}
                   canReview={!!data.deal?.isClient && !adminView && progressing}
                   expiresAt={post?.progressingExpiresAt ?? null}
                   paused={!!post?.progressingPausedAt}
@@ -397,12 +398,14 @@ function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
 
 function CheckCard({
   message,
+  post,
   canReview,
   expiresAt,
   paused,
   onReview,
 }: {
   message: Message;
+  post: Post | null | undefined;
   canReview: boolean;
   expiresAt: string | null;
   paused: boolean;
@@ -414,6 +417,8 @@ function CheckCard({
   const done = !paused && countdown.done;
   const check = message.check;
   const showButtons = canReview && check?.status === 'PENDING';
+  const name = post?.name?.trim();
+  const title = post?.title?.trim();
 
   async function click(a: 'checked' | 'not-checked') {
     if (!check || busy) return;
@@ -428,6 +433,18 @@ function CheckCard({
         <p className="text-xs font-semibold uppercase tracking-wide text-brand-mint">Checking info</p>
         {check && <Badge tone={checkTone[check.status]}>{checkLabel[check.status]}</Badge>}
       </div>
+      {(name || title) && (
+        <div className="mt-2">
+          <p className="text-[11px] text-ink-lo">Buying</p>
+          {name && <p className="text-sm font-semibold text-ink-hi">{name}</p>}
+          {title && title !== name && (
+            <p className={cn('break-all text-ink-mid', name ? 'text-xs' : 'text-sm font-semibold text-ink-hi')}>{title}</p>
+          )}
+          <p className="text-xs text-ink-mid">
+            {post!.connects} connects · {formatPrice(post!.price)}
+          </p>
+        </div>
+      )}
       <a
         href={message.body ?? '#'}
         target="_blank"

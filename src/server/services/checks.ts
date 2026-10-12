@@ -38,8 +38,8 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
   const result = await prisma.$transaction(async (tx) => {
     // Lock the post row: a concurrent expiry waits for us (or we see its result), and two
     // submits for the same post are serialized.
-    const locked = await tx.$queryRaw<{ id: string; clientId: string; title: string; name: string | null }[]>`
-      SELECT id, "clientId", title, name FROM "Post"
+    const locked = await tx.$queryRaw<{ id: string; clientId: string; title: string; name: string | null; connects: number; price: number | null }[]>`
+      SELECT id, "clientId", title, name, connects, price FROM "Post"
       WHERE id = ${postId} AND status = 'PROGRESSING' AND "holderId" = ${customer.id}
         AND "progressingExpiresAt" > ${DB_NOW}
       FOR UPDATE`;
@@ -83,11 +83,13 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
       checkSubmissionId: check.id,
     });
 
-    const label = post.name?.trim() || post.title;
+    const name = post.name?.trim();
+    const title = post.title.trim();
+    const price = post.price === null || post.price === undefined ? null : `$${(Math.round(Number(post.price) * 100) / 100).toFixed(2)}`;
     const note = {
       type: 'CHECK_SUBMITTED' as const,
-      title: `${customer.name} sent a confirm URL`,
-      body: `"${label}" · ${url}`,
+      title: `${customer.name} is buying ${name || title}`,
+      body: [name && name !== title ? title : null, price, `${post.connects} connects`, url].filter(Boolean).join(' · '),
       postId,
       conversationId: conv.id,
     };

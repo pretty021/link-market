@@ -69,8 +69,8 @@ describe('checking info', () => {
     const admin = await makeAdmin();
     const { conversationId } = await submitCheck(holder, post.id, 'https://example.com/proof');
     const n = await prisma.notification.findFirstOrThrow({ where: { userId: client.id, type: 'CHECK_SUBMITTED' } });
-    expect(n.title).toBe(`${holder.name} sent a confirm URL`);
-    expect(n.body).toBe('"Account #1042" · https://example.com/proof');
+    expect(n.title).toBe(`${holder.name} is buying Account #1042`);
+    expect(n.body).toBe('$35.01 · 3 connects · https://example.com/proof');
     expect(n.conversationId).toBe(conversationId);
     const adminNote = await prisma.notification.findFirstOrThrow({ where: { adminId: admin.id, type: 'CHECK_SUBMITTED' } });
     expect(adminNote).toMatchObject({ title: n.title, body: n.body, conversationId });
