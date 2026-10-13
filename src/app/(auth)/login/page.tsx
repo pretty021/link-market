@@ -24,7 +24,7 @@ function LoginForm() {
     setError(null);
     try {
       const { me } = await api<{ me: Me }>('/api/auth/login', { json: { email, password } });
-      window.location.href = homePath(me.kind === 'admin' ? me : { kind: 'user', role: me.role });
+      window.location.href = homePath(me);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not log in.');
       setBusy(false);

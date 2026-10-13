@@ -1,7 +1,8 @@
 import { Prisma, type Post, type PostStatus } from '@prisma/client';
 import { DB_NOW, prisma, type Tx } from '@/lib/db';
 import type { AdminActor, UserActor } from '@/lib/actor';
-import { badRequest, conflict, notFound } from '@/lib/errors';
+import { ACCOUNT_KIND_LABEL, type AccountKind } from '@/lib/account-kinds';
+import { badRequest, conflict, forbidden, notFound } from '@/lib/errors';
 import { rooms, viewerCount } from '@/lib/realtime';
 import { deleteStoredImage } from '@/lib/storage';
 import type { ImageInfo } from '@/lib/validation';
@@ -32,6 +33,7 @@ export function toPostDTO(p: PostRow, opts: { staff: boolean }) {
     id: p.id,
     title: p.title,
     name: p.name,
+    kind: p.kind,
     visible: p.visible,
     status: p.status,
     image: p.image as ImageInfo | null,
@@ -421,10 +423,10 @@ export async function deleteRequestedPost(postId: string) {
   return { ok: true };
 }
 
-export async function listAdminPosts(status?: PostStatus) {
+export async function listAdminPosts(status?: PostStatus, kind?: AccountKind) {
   await expireDue();
   const posts = await prisma.post.findMany({
-    where: status ? { status } : {},
+    where: { ...(status ? { status } : {}), ...(kind ? { kind } : {}) },
     include: postInclude,
     orderBy: { createdAt: 'desc' },
   });
@@ -435,23 +437,38 @@ export async function listAdminPosts(status?: PostStatus) {
 
 export async function createClientPosts(
   client: UserActor,
-  items: { title: string; name: string; connects: number; price: number }[],
+  items: { title: string; price: number; kind?: AccountKind; name?: string; connects?: number }[],
 ) {
+  const seller = await prisma.user.findUniqueOrThrow({ where: { id: client.id }, select: { sellerKinds: true } });
+  const kinds = items.map((item) => item.kind ?? 'LINKEDIN');
+  for (const kind of kinds) {
+    if (!seller.sellerKinds.includes(kind)) throw forbidden(`This seller cannot request ${ACCOUNT_KIND_LABEL[kind]} accounts.`);
+  }
   const out = new Outbox();
   const result = await prisma.$transaction(async (tx) => {
     const posts = await Promise.all(
-      items.map((item) =>
-        tx.post.create({
-          data: { clientId: client.id, title: item.title, name: item.name, connects: item.connects, price: item.price },
+      items.map((item, i) => {
+        const kind = kinds[i]!;
+        return tx.post.create({
+          data: {
+            clientId: client.id,
+            title: item.title,
+            kind,
+            name: kind === 'LINKEDIN' ? (item.name ?? null) : null,
+            connects: kind === 'LINKEDIN' ? (item.connects ?? 0) : 0,
+            price: item.price,
+          },
           include: postInclude,
-        }),
-      ),
+        });
+      }),
     );
     const serverNow = await dbNow(tx);
     const dtos = posts.map((p) => toPostDTO(p, { staff: true }));
     const admins = await tx.admin.findMany({ select: { id: true } });
     const label = posts[0]?.name?.trim() || posts[0]?.title;
-    const title = posts.length === 1 ? 'New link request' : `${posts.length} new link requests`;
+    const uniqueKinds = [...new Set(kinds)];
+    const kindLabel = uniqueKinds.length === 1 ? ACCOUNT_KIND_LABEL[uniqueKinds[0]!] : 'account';
+    const title = posts.length === 1 ? `New ${kindLabel} request` : `${posts.length} new ${kindLabel} requests`;
     const body = posts.length === 1 ? `"${label}" from ${client.name}` : `${posts.length} requests from ${client.name}`;
     for (const admin of admins) {
       await notify(tx, out, { adminId: admin.id }, {
@@ -468,10 +485,10 @@ export async function createClientPosts(
   return result;
 }
 
-export async function listClientPosts(client: UserActor) {
+export async function listClientPosts(client: UserActor, kind?: AccountKind) {
   await expireDue();
   const posts = await prisma.post.findMany({
-    where: { clientId: client.id },
+    where: { clientId: client.id, ...(kind ? { kind } : {}) },
     include: postInclude,
     orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
   });

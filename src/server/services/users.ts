@@ -1,4 +1,4 @@
-import { Prisma, type Role, type User } from '@prisma/client';
+import { Prisma, type AccountKind, type Role, type User } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { Actor, AdminActor } from '@/lib/actor';
 import { HttpError, badRequest, conflict, forbidden, notFound } from '@/lib/errors';
@@ -32,7 +32,7 @@ export function toUserDTO(u: User) {
     createdAt: u.createdAt,
   };
   return u.role === 'CLIENT'
-    ? { ...base, s_counts: u.s_counts }
+    ? { ...base, s_counts: u.s_counts, sellerKinds: u.sellerKinds }
     : { ...base, b_counts: u.b_counts, cartLimit: u.cartLimit };
 }
 export type UserDTO = ReturnType<typeof toUserDTO>;
@@ -193,6 +193,7 @@ type AdminUserInput = {
   b_counts?: number;
   cartLimit?: number;
   paymentAddresses?: PaymentInput[];
+  sellerKinds?: AccountKind[];
 };
 
 async function replacePayments(clientId: string, addresses: PaymentInput[]) {
@@ -207,7 +208,7 @@ async function replacePayments(clientId: string, addresses: PaymentInput[]) {
 /** Drop fields that don't belong to the role (b_counts/cartLimit are Customer-only, s_counts Client-only). */
 function roleFields(role: Role, d: AdminUserInput) {
   return role === 'CLIENT'
-    ? { s_counts: d.s_counts }
+    ? { s_counts: d.s_counts, ...(d.sellerKinds ? { sellerKinds: [...new Set(d.sellerKinds)] } : {}) }
     : { b_counts: d.b_counts, cartLimit: d.cartLimit };
 }
 

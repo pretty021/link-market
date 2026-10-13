@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { LogOut, LifeBuoy, ShoppingCart, User } from 'lucide-react';
+import { ACCOUNT_KINDS, ACCOUNT_KIND_LABEL, kindHref } from '@/lib/account-kinds';
 import { api, ApiError } from '@/lib/client/api';
 import { homePath } from '@/lib/home';
 import type { Me, Post } from '@/lib/client/types';
@@ -24,6 +25,10 @@ function navFor(me: Me): NavItem[] {
     return [
       { href: '/admin', label: 'Requests' },
       { href: '/admin/posts', label: 'Links' },
+      { href: '/admin/gv', label: 'GV' },
+      { href: '/admin/gmail', label: 'Gmail' },
+      { href: '/admin/whatsapp', label: 'WhatsApp' },
+      { href: '/admin/telegram', label: 'Telegram' },
       { href: '/admin/clients', label: 'Clients' },
       { href: '/admin/customers', label: 'Customers' },
       { href: '/chat', label: 'Messages' },
@@ -31,14 +36,19 @@ function navFor(me: Me): NavItem[] {
     ];
   }
   if (me.role === 'CLIENT') {
-    return [
-      { href: '/client', label: 'Links' },
-      { href: '/client/analysis', label: 'Analysis' },
-      { href: '/chat', label: 'Messages' },
-    ];
+    const kinds = me.sellerKinds?.length ? me.sellerKinds : ['LINKEDIN'];
+    const catalogs = ACCOUNT_KINDS.filter((kind) => kinds.includes(kind)).map((kind) => ({
+      href: kindHref(kind, 'client'),
+      label: kind === 'LINKEDIN' ? 'Links' : ACCOUNT_KIND_LABEL[kind],
+    }));
+    return [...catalogs, { href: '/client/analysis', label: 'Analysis' }, { href: '/chat', label: 'Messages' }];
   }
   return [
-    { href: '/feed', label: 'Marketplace' },
+    { href: '/feed', label: 'LinkedIn' },
+    { href: '/feed/gv', label: 'GV' },
+    { href: '/feed/gmail', label: 'Gmail' },
+    { href: '/feed/whatsapp', label: 'WhatsApp' },
+    { href: '/feed/telegram', label: 'Telegram' },
     { href: '/analysis', label: 'Analysis' },
     { href: '/cart', label: 'Cart' },
     { href: '/chat', label: 'Messages' },

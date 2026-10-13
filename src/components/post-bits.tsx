@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { ImagePlus, Pause, Timer } from 'lucide-react';
 import { api, ApiError } from '@/lib/client/api';
+import { isKindLogoSrc, kindLogoSrc } from '@/lib/account-kinds';
 import { useCountdown } from '@/lib/client/clock';
 import type { ImageInfo, PostStatus } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
@@ -169,11 +170,16 @@ export function LinkedInMark({ className }: { className?: string }) {
   );
 }
 
-/** Uploaded image, or the account cover: LinkedIn blue filling the whole area with the "in" centred. */
-export function PostImage({ image, title, className }: { image: ImageInfo | null; title: string; className?: string }) {
+/** Uploaded image, a catalog logo, or the LinkedIn cover (blue filling the whole area with the "in" centred). */
+export function PostImage({ image, title, className, kind }: { image: ImageInfo | null; title: string; className?: string; kind?: string | null }) {
   if (image?.url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={image.url} alt={title} className={cn('size-full object-cover', className)} />;
+  }
+  const logo = kindLogoSrc(kind);
+  if (logo) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={logo} alt={title} className={cn('size-full bg-white object-contain p-1', className)} />;
   }
   return (
     <div
@@ -242,7 +248,7 @@ export function ImageUpload({
       >
         {value?.url || placeholderSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value?.url || placeholderSrc} alt="" className="size-full object-cover" />
+          <img src={value?.url || placeholderSrc} alt="" className={cn('size-full', value?.url || !isKindLogoSrc(placeholderSrc) ? 'object-cover' : 'bg-white object-contain p-1')} />
         ) : (
           <ImagePlus className="size-5" />
         )}

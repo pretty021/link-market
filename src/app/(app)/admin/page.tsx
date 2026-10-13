@@ -12,6 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Avatar, Card, CardHeader, Empty, Field, Input, Label, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import type { ImageInfo, Post } from '@/lib/client/types';
+import { ACCOUNT_KIND_LABEL, coverClass, coverSrc, kindLogoSrc } from '@/lib/account-kinds';
 import { formatPrice } from '@/lib/utils';
 
 type Stats = { clientsOnline: number; clientsTotal: number; customersOnline: number; customersTotal: number; requested: number; progressing: number };
@@ -272,7 +273,7 @@ function SoldAnalysis({
                 return (
                   <li key={post.id} className="flex items-center gap-3 py-2.5">
                     <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-bg-elev ring-1 ring-line/70">
-                      <PostImage image={post.image} title={post.title} />
+                      <PostImage image={post.image} title={post.title} kind={post.kind} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-ink-hi">{post.name?.trim() || post.title}</p>
@@ -459,12 +460,13 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
   const [saving, setSaving] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [saved, setSaved] = useState(post);
+  const linkedIn = (post.kind ?? 'LINKEDIN') === 'LINKEDIN';
 
   const dirty =
-    (name.trim() || null) !== (saved.name ?? null) ||
+    (linkedIn && (name.trim() || null) !== (saved.name ?? null)) ||
     title.trim() !== saved.title ||
     (image?.key ?? null) !== (saved.image?.key ?? null) ||
-    Number(connects) !== saved.connects ||
+    (linkedIn && Number(connects) !== saved.connects) ||
     (price === '' ? null : Math.round(Number(price) * 100) / 100) !== saved.price;
 
   async function save() {
@@ -472,7 +474,12 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
     try {
       const r = await api<{ post: Post }>(`/api/admin/posts/${post.id}`, {
         method: 'PATCH',
-        json: { name: name.trim(), title: title.trim(), image, connects: Number(connects || 0), ...(price !== '' ? { price: Number(price) } : {}) },
+        json: {
+          title: title.trim(),
+          image,
+          ...(linkedIn ? { name: name.trim(), connects: Number(connects || 0) } : {}),
+          ...(price !== '' ? { price: Number(price) } : {}),
+        },
       });
       setSaved(r.post);
       setName(r.post.name ?? '');
@@ -522,6 +529,7 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-mint">Seller</p>
             <p className="truncate text-base font-semibold leading-tight text-ink-hi">{post.clientName}</p>
+            <p className="text-[11px] font-medium text-ink-mid">{ACCOUNT_KIND_LABEL[post.kind ?? 'LINKEDIN']}</p>
           </div>
         </div>
         <time dateTime={sent.toISOString()} className="shrink-0 text-right text-[11px] leading-tight tabular-nums text-ink-lo">
@@ -531,7 +539,7 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
       </div>
       <div className="flex gap-4 px-4 py-4">
         <div className="shrink-0 pt-6">
-          <ImageUpload value={image} onChange={setImage} placeholderSrc="/post-default.jpg" imageOnly />
+          <ImageUpload value={image} onChange={setImage} placeholderSrc={kindLogoSrc(post.kind) ?? '/post-default.jpg'} imageOnly />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div>
@@ -545,13 +553,17 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
             </div>
             <Input id={`t-${post.id}`} maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <Field label="Name" htmlFor={`n-${post.id}`}>
-            <Input id={`n-${post.id}`} maxLength={120} placeholder="Robert George" value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Connects" htmlFor={`c-${post.id}`}>
-              <Input id={`c-${post.id}`} type="number" min={0} step={1} value={connects} onChange={(e) => setConnects(e.target.value)} />
+          {linkedIn && (
+            <Field label="Name" htmlFor={`n-${post.id}`}>
+              <Input id={`n-${post.id}`} maxLength={120} placeholder="Robert George" value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
+          )}
+          <div className={linkedIn ? 'grid grid-cols-2 gap-3' : undefined}>
+            {linkedIn && (
+              <Field label="Connects" htmlFor={`c-${post.id}`}>
+                <Input id={`c-${post.id}`} type="number" min={0} step={1} value={connects} onChange={(e) => setConnects(e.target.value)} />
+              </Field>
+            )}
             <Field label="Price ($)" htmlFor={`p-${post.id}`}>
               <Input id={`p-${post.id}`} type="number" min={0} step="0.01" placeholder="50.00" value={price} onChange={(e) => setPrice(e.target.value)} />
             </Field>
@@ -573,10 +585,10 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
   );
 }
 
-function PostCover({ image, title }: { image: ImageInfo | null; title: string }) {
+function PostCover({ image, title, kind }: { image: ImageInfo | null; title: string; kind?: string | null }) {
   if (image?.url) return <PostImage image={image} title={title} />;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src="/post-default.jpg" alt={title} className="size-full object-cover" />;
+  return <img src={coverSrc(null, kind)} alt={title} className={coverClass(null, kind)} />;
 }
 
 function acceptedStamp(post: Post) {
@@ -610,7 +622,7 @@ function AcceptedRow({ post }: { post: Post }) {
       </time>
       <div className="flex items-center gap-2.5">
         <div className="size-11 shrink-0 overflow-hidden rounded-lg bg-bg-elev ring-1 ring-line/70">
-          <PostCover image={post.image} title={post.title} />
+          <PostCover image={post.image} title={post.title} kind={post.kind} />
         </div>
         <div className="min-w-0 flex-1">
           {name ? (
@@ -628,9 +640,13 @@ function AcceptedRow({ post }: { post: Post }) {
         </div>
       </div>
       <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-line/60 pt-2">
-        <p className="text-xs text-ink-lo">
-          Connects <span className="font-semibold tabular-nums text-ink-hi">{post.connects}</span>
-        </p>
+        {(post.kind ?? 'LINKEDIN') === 'LINKEDIN' ? (
+          <p className="text-xs text-ink-lo">
+            Connects <span className="font-semibold tabular-nums text-ink-hi">{post.connects}</span>
+          </p>
+        ) : (
+          <p className="text-xs font-medium text-ink-mid">{ACCOUNT_KIND_LABEL[post.kind]}</p>
+        )}
         <p className="text-sm font-bold tabular-nums text-ink-hi">{formatPrice(post.price)}</p>
       </div>
     </li>

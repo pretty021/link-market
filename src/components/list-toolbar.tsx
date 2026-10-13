@@ -110,7 +110,10 @@ export function useListControls(
   defaultSort: SortKey = 'updated',
   fields: SearchField[] = ['all', 'title', 'seller', 'buyer'],
   sortable = true,
+  /** Sort buttons to offer, by label (default: all of SORT_GROUPS). */
+  sortLabels?: string[],
 ) {
+  const sortGroups = sortLabels ? SORT_GROUPS.filter((g) => sortLabels.includes(g.label)) : SORT_GROUPS;
   const defaults: Saved = { q: '', field: 'all', status: statusOptions[0]!.value, sort: defaultSort };
   const [q, setQState] = useState(defaults.q);
   const [field, setFieldState] = useState<SearchField>(defaults.field);
@@ -144,7 +147,7 @@ export function useListControls(
         q: typeof saved.q === 'string' ? saved.q : defaults.q,
         field: saved.field && fields.includes(saved.field) ? saved.field : defaults.field,
         status: statusOptions.some((o) => o.value === saved.status) ? saved.status! : defaults.status,
-        sort: SORT_OPTIONS.some((o) => o.value === saved.sort) ? saved.sort! : defaults.sort,
+        sort: sortGroups.some((g) => (g.keys as SortKey[]).includes(saved.sort!)) ? saved.sort! : defaults.sort,
       };
       current.current = next;
       setQState(next.q);
@@ -176,7 +179,7 @@ export function useListControls(
     setSort(defaultSort);
   };
 
-  return { q, setQ, field, setField, fields, status, setStatus, sort, setSort, apply, isDefault, reset, statusOptions, sortable };
+  return { q, setQ, field, setField, fields, status, setStatus, sort, setSort, apply, isDefault, reset, statusOptions, sortable, sortGroups };
 }
 
 type Controls = ReturnType<typeof useListControls>;
@@ -224,7 +227,7 @@ export function ListToolbar({
   countStyle?: 'text' | 'badge';
   className?: string;
 }) {
-  const { q, setQ, field, setField, fields, status, setStatus, sort, setSort, isDefault, reset, statusOptions, sortable } = controls;
+  const { q, setQ, field, setField, fields, status, setStatus, sort, setSort, isDefault, reset, statusOptions, sortable, sortGroups } = controls;
   const [draft, setDraft] = useState(q);
   const stack = layout === 'stack';
   const showStatus = statusOptions.length > 1;
@@ -325,7 +328,7 @@ export function ListToolbar({
   const sortGroup = (
     <Group label="Sort">
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Sort">
-        {SORT_GROUPS.map((g) => {
+        {sortGroups.map((g) => {
           const idx = g.keys.indexOf(sort);
           const active = idx !== -1;
           const flips = g.keys.length === 2;

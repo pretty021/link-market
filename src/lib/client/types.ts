@@ -1,3 +1,5 @@
+import type { AccountKind } from '@/lib/account-kinds';
+
 export type ImageInfo = { url: string; key: string; mimeType: string; size: number; width: number; height: number };
 export type PostStatus = 'REQUESTED' | 'PUBLISHED' | 'PROGRESSING' | 'COMPLETED';
 export type CheckStatus = 'PENDING' | 'CHECKED' | 'NOT_CHECKED' | 'EXPIRED';
@@ -7,6 +9,7 @@ export type Post = {
   title: string;
   /** Display name set by the Admin; shown instead of the title when present. */
   name: string | null;
+  kind: AccountKind;
   /** false = hidden from Customers by the Admin (the Client still sees it). */
   visible: boolean;
   status: PostStatus;
@@ -47,6 +50,7 @@ export type Me =
       b_counts?: number;
       cartLimit?: number;
       paymentAddresses?: PaymentAddress[];
+      sellerKinds?: AccountKind[];
     };
 
 export type UserRow = {
@@ -63,6 +67,7 @@ export type UserRow = {
   b_counts?: number;
   cartLimit?: number;
   paymentAddresses?: { id: string; type: string; address: string }[];
+  sellerKinds?: AccountKind[];
 };
 
 export type PaymentAddress = { id: string; type: string; address: string };

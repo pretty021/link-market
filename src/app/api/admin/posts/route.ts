@@ -6,6 +6,6 @@ export const dynamic = 'force-dynamic';
 
 export const GET = route(async (req) => {
   await requireAdmin(req);
-  const { status } = query(req, postStatusQuery);
-  return listAdminPosts(status);
+  const { status, kind } = query(req, postStatusQuery);
+  return listAdminPosts(status, kind);
 });

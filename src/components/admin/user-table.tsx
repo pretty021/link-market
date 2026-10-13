@@ -12,6 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Avatar, Badge, Card, Empty, Field, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import type { ImageInfo, Post, UserRow } from '@/lib/client/types';
+import { ACCOUNT_KINDS, ACCOUNT_KIND_LABEL, type AccountKind } from '@/lib/account-kinds';
 import { formatPrice, timeAgo } from '@/lib/utils';
 
 type Role = 'CLIENT' | 'CUSTOMER';
@@ -95,6 +96,7 @@ export function UserTable({ role }: { role: Role }) {
             <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
               <tr>
                 <th className="px-4 py-3 font-medium">User</th>
+                {isClient && <th className="px-4 py-3 font-medium">Sells</th>}
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 text-right font-medium">{isClient ? 'Sold' : 'Buy'}</th>
                 {isClient && <th className="px-4 py-3 text-right font-medium">Payments</th>}
@@ -119,6 +121,11 @@ export function UserTable({ role }: { role: Role }) {
                       </div>
                     </div>
                   </td>
+                  {isClient && (
+                    <td className="px-4 py-3 text-xs text-ink-mid">
+                      {(u.sellerKinds && u.sellerKinds.length > 0 ? u.sellerKinds : ['LINKEDIN' as AccountKind]).map((kind) => ACCOUNT_KIND_LABEL[kind]).join(', ')}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     {u.isBlocked ? <Badge tone="red">Blocked</Badge> : u.online ? <Badge tone="mint">Online</Badge> : <Badge>Offline</Badge>}
                   </td>
@@ -172,7 +179,7 @@ function SoldAccounts({ user, posts, onClose }: { user: UserRow | null; posts: P
               return (
                 <li key={p.id} className="flex items-center gap-3 px-2 py-3">
                   <div className="size-12 shrink-0 overflow-hidden rounded-lg bg-bg-elev ring-1 ring-line/70">
-                    <PostImage image={p.image} title={p.title} />
+                    <PostImage image={p.image} title={p.title} kind={p.kind} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-ink-hi">{name || p.title}</p>
@@ -202,6 +209,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
   const isClient = role === 'CLIENT';
   const [form, setForm] = useState({ name: '', email: '', password: '', count: '0', cartLimit: '1' });
   const [addresses, setAddresses] = useState<{ type: string; address: string }[]>([]);
+  const [kinds, setKinds] = useState<AccountKind[]>(['LINKEDIN']);
   const [image, setImage] = useState<ImageInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -212,6 +220,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
     if (user === 'new') {
       setForm({ name: '', email: '', password: '', count: '0', cartLimit: '1' });
       setAddresses([]);
+      setKinds(['LINKEDIN']);
       setImage(null);
     } else {
       setForm({
@@ -222,6 +231,7 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
         cartLimit: String(user.cartLimit ?? 1),
       });
       setAddresses((user.paymentAddresses ?? []).map(({ type, address }) => ({ type, address })));
+      setKinds(user.sellerKinds?.length ? user.sellerKinds : ['LINKEDIN']);
       setImage(user.image);
     }
   }, [user, isClient]);
@@ -236,8 +246,13 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
       setBusy(false);
       return;
     }
+    if (isClient && kinds.length === 0) {
+      setError('Choose at least one account type.');
+      setBusy(false);
+      return;
+    }
     const paymentAddresses = filled.map((a) => ({ type: a.type.trim(), address: a.address.trim() }));
-    const counts = isClient ? { paymentAddresses } : { b_counts: Number(form.count), cartLimit: Number(form.cartLimit) };
+    const counts = isClient ? { paymentAddresses, sellerKinds: kinds } : { b_counts: Number(form.count), cartLimit: Number(form.cartLimit) };
     try {
       if (isNew) {
         await api('/api/admin/users', { json: { role, name: form.name, email: form.email, password: form.password, image, ...counts } });
@@ -269,6 +284,23 @@ function UserDialog({ role, user, onClose, onSaved }: { role: Role; user: UserRo
           <Field label={isNew ? 'Password (at least 8 characters)' : 'New password (leave empty to keep)'} htmlFor="u-pass">
             <Input id="u-pass" type="password" minLength={8} required={isNew} value={form.password} onChange={set('password')} autoComplete="new-password" />
           </Field>
+          {isClient && (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-ink-hi">Sells</p>
+              <div className="flex flex-wrap gap-2">
+                {ACCOUNT_KINDS.map((kind) => (
+                  <label key={kind} className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={kinds.includes(kind)}
+                      onChange={() => setKinds((current) => (current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind]))}
+                    />
+                    {ACCOUNT_KIND_LABEL[kind]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {isClient && (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">

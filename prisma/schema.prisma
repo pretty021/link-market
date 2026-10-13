@@ -17,6 +17,14 @@ enum Role {
   CUSTOMER
 }
 
+enum AccountKind {
+  LINKEDIN
+  GV
+  GMAIL
+  WHATSAPP
+  TELEGRAM
+}
+
 enum PostStatus {
   REQUESTED    // Client submitted it, waiting for Admin
   PUBLISHED    // Admin accepted it, visible to all Customers (many Customers may have it in their cart)
@@ -93,6 +101,7 @@ model User {
   s_counts     Int       @default(0)   // CLIENT accounts only (shown instead of b_counts); set by Admin
   cartLimit    Int       @default(1)   // Customers only (ignored for Clients); set by Admin.
                                        // The ONLY limit on a Customer's cart: COUNT(CartItem) < cartLimit
+  sellerKinds  AccountKind[] @default([LINKEDIN]) // CLIENT only: which account types this seller may request
   isBlocked    Boolean   @default(false)
   lastSeenAt   DateTime?               // heartbeat; "online now" = recent lastSeenAt / open socket
   deletedAt    DateTime?               // soft delete, so chat and deal history survive
@@ -158,6 +167,7 @@ model Post {
   client   User       @relation("PostClient", fields: [clientId], references: [id])
   title    String                         // the link from the request (usually the account URL)
   name     String?                        // display name; shown instead of the title when present
+  kind     AccountKind @default(LINKEDIN) // which seller catalog this account belongs to
   visible  Boolean    @default(true)      // Admin can hide an accepted post from Customers (its Client still sees it)
   status   PostStatus @default(REQUESTED) // REQUESTED -> PUBLISHED -> PROGRESSING -> COMPLETED
   image    Json?                          // uploaded image info: { url, key, mimeType, size, width, height }; set by Admin
@@ -191,6 +201,7 @@ model Post {
   notifications    Notification[]
 
   @@index([status])
+  @@index([kind, status])
   @@index([approval, status])
   @@index([clientId, status])
   @@index([holderId, status])

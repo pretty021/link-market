@@ -37,6 +37,8 @@ export const passwordChangeSchema = z.object({
 
 const count = z.coerce.number().int().min(0).max(1_000_000);
 
+export const accountKindSchema = z.enum(['LINKEDIN', 'GV', 'GMAIL', 'WHATSAPP', 'TELEGRAM']);
+
 export const adminCreateUserSchema = z.object({
   role: z.enum(['CLIENT', 'CUSTOMER']),
   name,
@@ -47,6 +49,11 @@ export const adminCreateUserSchema = z.object({
   b_counts: count.optional(),
   cartLimit: z.coerce.number().int().min(0).max(1000).optional(),
   paymentAddresses: z.array(paymentAddressSchema).max(20).optional(),
+  sellerKinds: z.array(accountKindSchema).min(1, 'Choose at least one account type.').max(5).optional(),
+}).superRefine((d, ctx) => {
+  if (d.role === 'CLIENT' && (!d.sellerKinds || d.sellerKinds.length === 0)) {
+    ctx.addIssue({ code: 'custom', message: 'Choose at least one account type.', path: ['sellerKinds'] });
+  }
 });
 
 export const adminUpdateUserSchema = z.object({
@@ -58,6 +65,7 @@ export const adminUpdateUserSchema = z.object({
   b_counts: count.optional(),
   cartLimit: z.coerce.number().int().min(0).max(1000).optional(),
   paymentAddresses: z.array(paymentAddressSchema).max(20).optional(),
+  sellerKinds: z.array(accountKindSchema).min(1, 'Choose at least one account type.').max(5).optional(),
 });
 
 export const adminUsersQuery = z.object({
@@ -90,6 +98,11 @@ export const acceptSchema =z.object({ note: z.string().trim().max(500).optional(
 
 export const postStatusQuery = z.object({
   status: z.enum(['REQUESTED', 'PUBLISHED', 'PROGRESSING', 'COMPLETED']).optional(),
+  kind: accountKindSchema.optional(),
+});
+
+export const accountKindQuery = z.object({
+  kind: accountKindSchema.optional(),
 });
 
 const requestPrice = z.coerce
@@ -98,18 +111,24 @@ const requestPrice = z.coerce
   .max(10_000_000, 'Price is too large.')
   .transform((v) => Math.round(v * 100) / 100);
 
+const requestTitle = z.string().trim().min(1, 'Title is required.').max(300, 'Title must be 300 characters or less.');
+
+const linkedInRequest = z.object({
+  kind: z.literal('LINKEDIN').optional().default('LINKEDIN'),
+  title: requestTitle,
+  name: z.string().trim().min(1, 'Name is required.').max(120, 'Name must be 120 characters or less.'),
+  connects: z.coerce.number().int().min(0, 'Connects must be 0 or more.').max(1_000_000, 'Connects is too large.'),
+  price: requestPrice,
+});
+
+const simpleRequest = z.object({
+  kind: z.enum(['GV', 'GMAIL', 'WHATSAPP', 'TELEGRAM']),
+  title: requestTitle,
+  price: requestPrice,
+});
+
 export const clientPostsSchema = z.object({
-  posts: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1, 'Link is required.').max(300, 'Link must be 300 characters or less.'),
-        name: z.string().trim().min(1, 'Name is required.').max(120, 'Name must be 120 characters or less.'),
-        connects: z.coerce.number().int().min(0, 'Connects must be 0 or more.').max(1_000_000, 'Connects is too large.'),
-        price: requestPrice,
-      }),
-    )
-    .min(1, 'Add at least one link.')
-    .max(50),
+  posts: z.array(z.union([simpleRequest, linkedInRequest])).min(1, 'Add at least one link.').max(50),
 });
 
 export const checkUrlSchema = z.object({

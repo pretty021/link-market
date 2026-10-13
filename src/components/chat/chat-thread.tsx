@@ -9,6 +9,7 @@ import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
 import { Avatar, Badge, Empty, Input, Spinner } from '@/components/ui/primitives';
+import { ACCOUNT_KIND_LABEL } from '@/lib/account-kinds';
 import { api, ApiError } from '@/lib/client/api';
 import { useCountdown } from '@/lib/client/clock';
 import type { Attachment, Check, CheckStatus, Conversation, Message, Post } from '@/lib/client/types';
@@ -206,7 +207,7 @@ export function ChatThread({ conversationId, adminView, onBack }: { conversation
           <p className="truncate font-semibold">{adminView ? conv.participants.map((p) => `${p.name} (${p.role.toLowerCase()})`).join(' · ') : conv.title}</p>
           <p className="truncate text-xs text-ink-lo">
             {typeLabel[conv.type]}
-            {post && ` · ${post.name || post.title} · ${formatPrice(post.price)}`}
+            {post && ` · ${ACCOUNT_KIND_LABEL[post.kind ?? 'LINKEDIN']} · ${post.name || post.title} · ${formatPrice(post.price)}`}
           </p>
         </div>
         {post && <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />}
@@ -435,13 +436,19 @@ function CheckCard({
       </div>
       {(name || title) && (
         <div className="mt-2">
-          <p className="text-[11px] text-ink-lo">Buying</p>
+          <p className="flex items-center gap-1.5 text-[11px] text-ink-lo">
+            Buying
+            <span className="rounded-full border border-brand-mint/40 bg-brand-mint/10 px-1.5 py-px text-[10px] font-semibold text-brand-mint">
+              {ACCOUNT_KIND_LABEL[post!.kind ?? 'LINKEDIN']}
+            </span>
+          </p>
           {name && <p className="text-sm font-semibold text-ink-hi">{name}</p>}
           {title && title !== name && (
             <p className={cn('break-all text-ink-mid', name ? 'text-xs' : 'text-sm font-semibold text-ink-hi')}>{title}</p>
           )}
           <p className="text-xs text-ink-mid">
-            {post!.connects} connects · {formatPrice(post!.price)}
+            {(post!.kind ?? 'LINKEDIN') === 'LINKEDIN' && `${post!.connects} connects · `}
+            {formatPrice(post!.price)}
           </p>
         </div>
       )}

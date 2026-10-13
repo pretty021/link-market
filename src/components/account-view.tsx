@@ -1,0 +1,129 @@
+'use client';
+
+import { useEffect, useState, type ReactNode } from 'react';
+import { List, Table2 } from 'lucide-react';
+import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
+import { Badge } from '@/components/ui/primitives';
+import { coverClass, coverSrc } from '@/lib/account-kinds';
+import type { Post } from '@/lib/client/types';
+import { cn, formatPrice } from '@/lib/utils';
+
+export type AccountView = 'list' | 'table';
+
+const STORAGE_KEY = 'client-account-view';
+
+export function useAccountView(): [AccountView, (next: AccountView) => void] {
+  const [view, setView] = useState<AccountView>('list');
+  useEffect(() => {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (saved === 'list' || saved === 'table') setView(saved);
+  }, []);
+  function update(next: AccountView) {
+    setView(next);
+    window.localStorage.setItem(STORAGE_KEY, next);
+  }
+  return [view, update];
+}
+
+export function AccountViewToggle({ value, onChange }: { value: AccountView; onChange: (next: AccountView) => void }) {
+  const item = (mode: AccountView, label: string, icon: ReactNode) => (
+    <button
+      type="button"
+      aria-pressed={value === mode}
+      onClick={() => onChange(mode)}
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
+        value === mode ? 'bg-primary text-on-primary' : 'text-ink-mid hover:text-ink-hi',
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+  return (
+    <div className="inline-flex shrink-0 rounded-full border border-line bg-bg-base p-0.5" role="group" aria-label="Account layout">
+      {item('list', 'List', <List className="size-3.5" />)}
+      {item('table', 'Table', <Table2 className="size-3.5" />)}
+    </div>
+  );
+}
+
+export function AccountTable({
+  posts,
+  showConnects,
+  flash,
+  onExpired,
+}: {
+  posts: Post[];
+  showConnects: boolean;
+  flash: Set<string>;
+  onExpired: () => void;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[720px] text-sm">
+        <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
+          <tr>
+            <th className="px-4 py-3 font-medium">Account</th>
+            {showConnects && <th className="px-4 py-3 font-medium">Connects</th>}
+            <th className="px-4 py-3 font-medium">Status</th>
+            <th className="px-4 py-3 font-medium">Updated</th>
+            <th className="px-4 py-3 font-medium">Holder</th>
+            <th className="px-4 py-3 text-right font-medium">Price</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line/40">
+          {posts.map((post) => {
+            const when = new Date(post.updatedAt);
+            const linkedIn = (post.kind ?? 'LINKEDIN') === 'LINKEDIN';
+            return (
+              <tr key={post.id} className={cn('hover:bg-bg-elev/40', flash.has(post.id) && 'bg-brand-mint/10')}>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="size-8 shrink-0 overflow-hidden rounded-md bg-bg-elev">
+                      {post.image?.url ? (
+                        <PostImage image={post.image} title={post.title} />
+                      ) : linkedIn ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src="/post-default.jpg" alt={post.title} className="size-full object-cover" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={coverSrc(null, post.kind)} alt={post.title} className={coverClass(null, post.kind, 'p-0.5')} />
+                      )}
+                    </div>
+                    <PostTitle post={post} className="max-w-[240px]" headingClassName="font-medium" />
+                  </div>
+                </td>
+                {showConnects && <td className="px-4 py-3 tabular-nums text-ink-mid">{post.connects}</td>}
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
+                    {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
+                    {post.approval && !post.visible && <Badge tone="slate">Hidden</Badge>}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <time dateTime={when.toISOString()} className="block text-[11px] leading-tight tabular-nums text-ink-lo">
+                    <span className="block font-semibold text-ink-mid">{when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                    <span className="mt-0.5 block">{when.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  </time>
+                </td>
+                <td className="px-4 py-3 text-ink-mid">
+                  {post.status === 'PROGRESSING' ? (
+                    <div className="space-y-1">
+                      <p>{post.holderName ?? '-'}</p>
+                      <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
+                    </div>
+                  ) : (
+                    post.holderName ?? '-'
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatPrice(post.price)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}

@@ -6,6 +6,7 @@ import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime'
 import { Card, Spinner } from '@/components/ui/primitives';
 import { api } from '@/lib/client/api';
 import type { Post } from '@/lib/client/types';
+import { coverClass, coverSrc } from '@/lib/account-kinds';
 import { cn, formatPrice } from '@/lib/utils';
 
 type Period = {
@@ -135,7 +136,7 @@ function PeriodCard({ period, report }: { period: Period; report: ReturnType<typ
                     <img src={post.image.url} alt="" className="size-full object-cover" />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src="/post-default.jpg" alt="" className="size-full object-cover" />
+                    <img src={coverSrc(null, post.kind)} alt="" className={coverClass(null, post.kind)} />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">

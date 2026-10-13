@@ -10,6 +10,7 @@ import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime'
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
+import { coverClass, coverSrc } from '@/lib/account-kinds';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge, Card, Empty, Field, Input, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
@@ -138,7 +139,7 @@ export default function CartPage() {
               <Card key={post.id} className="flex flex-col gap-4 p-4 sm:flex-row">
                 <div className="h-32 w-full shrink-0 overflow-hidden rounded-xl bg-bg-elev sm:h-28 sm:w-44">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={post.image?.url || '/post-default.jpg'} alt={post.title} className="size-full object-cover" />
+                  <img src={coverSrc(post.image?.url, post.kind)} alt={post.title} className={coverClass(post.image?.url, post.kind, 'p-3')} />
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -147,7 +148,7 @@ export default function CartPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-mid">
                     <StatusBadge status={post.status} mine={held} clientChecking={held && !!post.progressingPausedAt} />
-                    <span className="flex items-center gap-1"><Link2 className="size-3.5" /> {post.connects} connects</span>
+                    {(post.kind ?? 'LINKEDIN') === 'LINKEDIN' && <span className="flex items-center gap-1"><Link2 className="size-3.5" /> {post.connects} connects</span>}
                     <span className="flex items-center gap-1"><Eye className="size-3.5" /> {post.viewCount} views</span>
                     {held && <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={() => void load()} />}
                     {held && item.latestCheckStatus === 'NOT_CHECKED' && <Badge tone="red">Not checked - resubmit</Badge>}
