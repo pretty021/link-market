@@ -84,7 +84,7 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
     'newest',
     ['all', 'title', 'seller'],
     true,
-    kind === 'GV' ? ['New', 'Updated', 'Price'] : kind === 'GMAIL' ? ['New', 'Updated', 'Price', 'A–Z'] : undefined,
+    kind === 'GV' ? ['New', 'Updated', 'Price', '0–9'] : kind === 'GMAIL' ? ['New', 'Updated', 'Price', 'A–Z'] : undefined,
   );
   const view = list.apply(scoped);
   const alive = view.shown?.filter((p) => p.status !== 'COMPLETED') ?? [];

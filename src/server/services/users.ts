@@ -6,6 +6,7 @@ import { createSession, hashPassword, revokeAllUserSessions, verifyPassword } fr
 import { disconnectPrincipal, emit, onlineIds, rooms } from '@/lib/realtime';
 import { deleteStoredImage } from '@/lib/storage';
 import type { ImageInfo } from '@/lib/validation';
+import { consumeSignupCode } from './email-codes';
 
 export const ONLINE_WINDOW_MS = 60_000;
 
@@ -61,7 +62,7 @@ export async function login(email: string, password: string, meta: { userAgent?:
   return { ...s, me: { kind: 'user' as const, ...toUserDTO(user) } };
 }
 
-async function assertEmailFree(email: string, exceptUserId?: string, exceptAdminId?: string) {
+export async function assertEmailFree(email: string, exceptUserId?: string, exceptAdminId?: string) {
   const [u, a] = await Promise.all([
     prisma.user.findUnique({ where: { email } }),
     prisma.admin.findUnique({ where: { email } }),
@@ -79,10 +80,11 @@ function uniqueViolation(e: unknown) {
 }
 
 export async function registerCustomer(
-  data: { name: string; email: string; password: string; image?: ImageInfo | null },
+  data: { name: string; email: string; password: string; code: string; image?: ImageInfo | null },
   meta: { userAgent?: string | null; ip?: string | null },
 ) {
   await assertEmailFree(data.email);
+  await consumeSignupCode(data.email, data.code);
   const user = await prisma.user
     .create({
       data: {

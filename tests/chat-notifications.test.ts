@@ -31,7 +31,7 @@ describe('chat notifications', () => {
     expect(await unreadNewMessages({ userId: customer.id }, conversationId)).toBe(3);
     expect(await unreadNewMessages({ userId: client.id }, conversationId)).toBe(0);
     const file = await prisma.notification.findFirstOrThrow({
-      where: { userId: customer.id, conversationId, body: { startsWith: 'Sent a file' } },
+      where: { userId: customer.id, conversationId, body: { contains: 'Sent a file' } },
     });
     expect(file.body).toBe('Test post: Sent a file: photo.png - see attached');
 

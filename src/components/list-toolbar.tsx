@@ -14,7 +14,9 @@ export type SortKey =
   | 'price-desc'
   | 'price-asc'
   | 'views'
-  | 'title';
+  | 'title'
+  | 'number-asc'
+  | 'number-desc';
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'updated', label: 'Recently updated' },
@@ -26,6 +28,8 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'price-asc', label: 'Price: low to high' },
   { value: 'views', label: 'Most viewed' },
   { value: 'title', label: 'Name: A to Z' },
+  { value: 'number-asc', label: 'Number: 0 to 9' },
+  { value: 'number-desc', label: 'Number: 9 to 0' },
 ];
 
 /** Which part of a listing the search box looks in. */
@@ -58,11 +62,25 @@ export const SORT_GROUPS: { label: string; keys: [SortKey] | [SortKey, SortKey];
   { label: 'A–Z', keys: ['title'], hint: ['By name, A to Z'] },
 ];
 
+/** Opt-in sorts, offered only to pages that list them in `sortLabels` (e.g. GV phone numbers). */
+const EXTRA_SORT_GROUPS: typeof SORT_GROUPS = [
+  { label: '0–9', keys: ['number-asc', 'number-desc'], hint: ['By number, 0 to 9', 'By number, 9 to 0'] },
+];
+
 export type StatusOption = { value: string; label: string; match: (p: Post) => boolean };
 
 const time = (s: string | null | undefined) => (s ? new Date(s).getTime() : 0);
 // Missing prices sort last in both directions.
 const price = (p: Post, dir: 1 | -1) => (p.price === null ? Number.POSITIVE_INFINITY : dir * p.price);
+
+// Digits of the name (e.g. "+1(919) 483-3993" -> "19194833993"); names without digits sort last.
+const digits = (p: Post) => (p.name || p.title).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+const byNumber = (dir: 1 | -1) => (a: Post, b: Post) => {
+  const x = digits(a);
+  const y = digits(b);
+  if (!x || !y) return (x ? 0 : 1) - (y ? 0 : 1);
+  return dir * (x.length - y.length || (x < y ? -1 : x > y ? 1 : 0));
+};
 
 const comparators: Record<SortKey, (a: Post, b: Post) => number> = {
   updated: (a, b) => time(b.updatedAt) - time(a.updatedAt),
@@ -74,6 +92,8 @@ const comparators: Record<SortKey, (a: Post, b: Post) => number> = {
   'price-asc': (a, b) => price(a, 1) - price(b, 1),
   views: (a, b) => b.viewCount - a.viewCount,
   title: (a, b) => (a.name || a.title).localeCompare(b.name || b.title, undefined, { sensitivity: 'base', numeric: true }),
+  'number-asc': byNumber(1),
+  'number-desc': byNumber(-1),
 };
 
 const statusWords: Record<Post['status'], string> = {
@@ -113,7 +133,7 @@ export function useListControls(
   /** Sort buttons to offer, by label (default: all of SORT_GROUPS). */
   sortLabels?: string[],
 ) {
-  const sortGroups = sortLabels ? SORT_GROUPS.filter((g) => sortLabels.includes(g.label)) : SORT_GROUPS;
+  const sortGroups = sortLabels ? [...SORT_GROUPS, ...EXTRA_SORT_GROUPS].filter((g) => sortLabels.includes(g.label)) : SORT_GROUPS;
   const defaults: Saved = { q: '', field: 'all', status: statusOptions[0]!.value, sort: defaultSort };
   const [q, setQState] = useState(defaults.q);
   const [field, setFieldState] = useState<SearchField>(defaults.field);

@@ -170,6 +170,17 @@ HOST="127.0.0.1"
 
 `HOST="127.0.0.1"` keeps port 3000 private: only Nginx/Caddy on the same server can reach it.
 
+New buyers confirm their email with a 6-digit code, so production also needs an SMTP mailbox
+(for example one created in your domain host's email panel):
+
+```dotenv
+SMTP_HOST="smtp.hostinger.com"
+SMTP_PORT=465
+SMTP_USER="no-reply@yourdomain.com"
+SMTP_PASS="mailbox-password"
+MAIL_FROM="inonlink <no-reply@yourdomain.com>"
+```
+
 Protect the file (it holds passwords):
 
 ```bash

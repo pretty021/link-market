@@ -16,7 +16,10 @@ const name = z.string().trim().min(1, 'Name is required.').max(100);
 
 export const loginSchema = z.object({ email, password: z.string().min(1).max(200) });
 
-export const registerSchema = z.object({ name, email, password, image: imageSchema.nullish() });
+const signupCode = z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.');
+
+export const signupCodeSchema = z.object({ email });
+export const registerSchema = z.object({ name, email, password, code: signupCode, image: imageSchema.nullish() });
 
 export const paymentAddressSchema = z.object({
   type: z.string().trim().min(1, 'Payment type is required.').max(40, 'Payment type must be 40 characters or less.'),

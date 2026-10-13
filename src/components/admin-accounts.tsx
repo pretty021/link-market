@@ -28,7 +28,7 @@ export function AdminAccounts({
     'newest',
     undefined,
     true,
-    kind === 'GV' ? ['New', 'Updated', 'Price'] : kind === 'GMAIL' ? ['New', 'Updated', 'Price', 'A–Z'] : undefined,
+    kind === 'GV' ? ['New', 'Updated', 'Price', '0–9'] : kind === 'GMAIL' ? ['New', 'Updated', 'Price', 'A–Z'] : undefined,
   );
   const view = list.apply(posts);
   const showConnects = kind === 'LINKEDIN';

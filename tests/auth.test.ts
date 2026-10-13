@@ -1,10 +1,16 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@/lib/db';
 import { resolveSession } from '@/lib/auth';
 import { POST as loginRoute } from '@/app/api/auth/login/route';
 import { GET as meRoute } from '@/app/api/me/route';
 import { changePassword, login, registerCustomer, setBlocked, softDeleteUser } from '@/server/services/users';
+import { sendSignupCode } from '@/server/services/email-codes';
 import { PASSWORD, apiRequest, makeAdmin, makeClient, makeCustomer, resetDb } from './helpers';
+
+const mail = vi.hoisted(() => ({ last: '' }));
+vi.mock('@/server/mailer', () => ({ sendMail: async (m: { text: string }) => void (mail.last = m.text) }));
+vi.mock('@/server/email-domain', () => ({ assertMailDomain: async () => {} }));
+const sentCode = () => /\b(\d{6})\b/.exec(mail.last)![1]!;
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -44,11 +50,12 @@ describe('login', () => {
   });
 
   it('a self-registered Customer can log in immediately', async () => {
-    const reg = await registerCustomer({ name: 'New Buyer', email: 'new@test.dev', password: 'longenough1' }, meta);
+    await sendSignupCode('new@test.dev');
+    const reg = await registerCustomer({ name: 'New Buyer', email: 'new@test.dev', password: 'longenough1', code: sentCode() }, meta);
     expect(reg.me).toMatchObject({ role: 'CUSTOMER', b_counts: 0, cartLimit: 1 });
     expect((await login('new@test.dev', 'longenough1', meta)).me.kind).toBe('user');
     await expect(
-      registerCustomer({ name: 'Dup', email: 'new@test.dev', password: 'longenough1' }, meta),
+      registerCustomer({ name: 'Dup', email: 'new@test.dev', password: 'longenough1', code: '123456' }, meta),
     ).rejects.toMatchObject({ code: 'EMAIL_TAKEN' });
   });
 

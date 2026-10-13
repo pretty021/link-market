@@ -369,3 +369,13 @@ model Notification {
 //   CHECK ((status IN ('PROGRESSING', 'COMPLETED')) = ("holderId" IS NOT NULL));
 // ALTER TABLE "Post" ADD CONSTRAINT post_progressing_check
 //   CHECK (status <> 'PROGRESSING' OR ("progressingAt" IS NOT NULL AND "progressingExpiresAt" IS NOT NULL));
+
+// One-time sign-up code sent to an email before a Customer account is created.
+// Only a hash of the code is stored. One row per email; a new code replaces the old one.
+model EmailCode {
+  email     String   @id
+  codeHash  String
+  attempts  Int      @default(0) // wrong guesses; the code stops working at 5
+  expiresAt DateTime
+  sentAt    DateTime @default(now())
+}

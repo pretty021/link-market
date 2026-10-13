@@ -127,6 +127,26 @@ Save: `Ctrl+O`, `Enter`, then `Ctrl+X`. Then protect the file:
 chmod 600 .env
 ```
 
+### 6b. Email for sign-up codes
+
+New buyers get a 6-digit code by email before their account is created. Without these
+settings, sign-up shows "Email is not set up yet". Add them to `.env`:
+
+```dotenv
+SMTP_HOST="smtp.hostinger.com"
+SMTP_PORT=465
+SMTP_USER="no-reply@inonlink.com"
+SMTP_PASS="MAILBOX_PASSWORD"
+MAIL_FROM="inonlink <no-reply@inonlink.com>"
+```
+
+- Create the mailbox first: Hostinger → **Emails** → inonlink.com → **Create email account**
+  (e.g. `no-reply@inonlink.com`). `MAILBOX_PASSWORD` is that mailbox's password.
+- Let Hostinger add its email DNS records (MX, SPF, DKIM) when it offers. Without them, codes land in spam.
+- Any other SMTP provider works too (Gmail with an App Password: `smtp.gmail.com`, port 465).
+
+After changing `.env`: `pm2 restart linkmarket`.
+
 ## 7. Install, build and start
 
 ```bash
