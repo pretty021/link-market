@@ -175,7 +175,7 @@ New buyers confirm their email with a 6-digit code, so production also needs an 
 
 ```dotenv
 SMTP_HOST="smtp.hostinger.com"
-SMTP_PORT=465
+SMTP_PORT=587
 SMTP_USER="no-reply@yourdomain.com"
 SMTP_PASS="mailbox-password"
 MAIL_FROM="inonlink <no-reply@yourdomain.com>"
