@@ -1,199 +1,195 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Activity, ArrowRight, BadgeCheck, Check, ChevronDown, Clock3, Handshake, Lock, MessagesSquare, ShieldCheck, Timer, UserCheck } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  Check,
+  CircleCheck,
+  Lock,
+  MessageCircle,
+  MessagesSquare,
+  Search,
+  ShieldCheck,
+  Timer,
+  Wallet,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { CanvasBackground } from '@/components/canvas-bg/canvas-background';
+import { LandingMarket, type LandingListing } from '@/components/landing-market';
+import { AccountThumb } from '@/components/linkedin-card';
 import { Logo } from '@/components/logo';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ACCOUNT_KINDS, type AccountKind } from '@/lib/account-kinds';
 import { prisma } from '@/lib/db';
 import { homePath } from '@/lib/home';
+import { onlineIds } from '@/lib/realtime';
 import { currentActor } from '@/lib/server-session';
 import type { ImageInfo } from '@/lib/validation';
-import { ACCOUNT_KIND_LABEL, ACCOUNT_KINDS, type AccountKind, coverClass, coverSrc } from '@/lib/account-kinds';
-import { formatPrice } from '@/lib/utils';
+import { cn, formatPrice } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 const wrap = 'mx-auto w-full max-w-6xl px-5 sm:px-8';
-
-const KIND_NOTE: Record<AccountKind, string> = {
-  LINKEDIN: 'Profiles with connects',
-  GV: 'Google Voice numbers',
-  GMAIL: 'Ready Gmail accounts',
-  WHATSAPP: 'Ready WhatsApp accounts',
-  TELEGRAM: 'Ready Telegram accounts',
-};
+const eyebrow = 'text-xs font-semibold text-teal-600 dark:text-teal-300';
+const h2 = 'mt-2 font-display text-3xl font-bold tracking-tight text-ink-hi sm:text-4xl';
+const SUPPORT_EMAIL = 'support@inonlink.com';
 
 const liveWhere = { approval: true, visible: true, status: { in: ['PUBLISHED' as const, 'PROGRESSING' as const] } };
+const listingInclude = { client: { select: { id: true, name: true, image: true } } } as const;
 
-/** Real numbers only: what is live right now and what has actually been completed. */
+/** Real numbers only: what is live now, what has been completed, and the newest listings of each type. */
 async function loadPublicData() {
-  const [byKind, completed, sellers, latest] = await Promise.all([
+  const [byKind, completed, sellers, perKind] = await Promise.all([
     prisma.post.groupBy({ by: ['kind'], where: liveWhere, _count: { _all: true } }),
     prisma.post.count({ where: { status: 'COMPLETED' } }),
     prisma.user.count({ where: { role: 'CLIENT', deletedAt: null, isBlocked: false } }),
     Promise.all(
       ACCOUNT_KINDS.map((kind) =>
-        prisma.post.findMany({
-          where: { ...liveWhere, kind },
-          include: { client: { select: { name: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: 3,
-        }),
+        prisma.post.findMany({ where: { ...liveWhere, kind }, include: listingInclude, orderBy: { createdAt: 'desc' }, take: 4 }),
       ),
     ),
   ]);
-  const liveByKind = Object.fromEntries(
-    ACCOUNT_KINDS.map((k) => [k, byKind.find((g) => g.kind === k)?._count._all ?? 0]),
-  ) as Record<AccountKind, number>;
-  const live = Object.values(liveByKind).reduce((a, b) => a + b, 0);
-  const groups = ACCOUNT_KINDS.map((kind, i) => ({ kind, posts: latest[i]! })).filter((g) => g.posts.length > 0);
-  return { live, liveByKind, completed, sellers, groups };
+  const counts = Object.fromEntries(ACCOUNT_KINDS.map((k) => [k, byKind.find((g) => g.kind === k)?._count._all ?? 0])) as Record<AccountKind, number>;
+  const rows = perKind.flat().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const listings: LandingListing[] = rows.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    name: p.name,
+    title: p.title,
+    price: p.price,
+    connects: p.connects,
+    photo: (p.image as ImageInfo | null)?.url ?? null,
+    seller: p.client.name,
+    sellerPhoto: (p.client.image as ImageInfo | null)?.url ?? null,
+  }));
+  // The hero card shows a real listing: a named LinkedIn account, ideally one with a photo.
+  const hero =
+    rows.find((p) => p.kind === 'LINKEDIN' && p.name && p.image) ?? rows.find((p) => p.kind === 'LINKEDIN' && p.name) ?? rows[0] ?? null;
+  return {
+    live: Object.values(counts).reduce((a, b) => a + b, 0),
+    counts,
+    completed,
+    sellers,
+    listings,
+    hero: hero && {
+      name: hero.name?.trim() || hero.title,
+      photo: (hero.image as ImageInfo | null)?.url ?? null,
+      detail: hero.kind === 'LINKEDIN' ? `LinkedIn · ${hero.connects} connects` : null,
+      price: hero.price,
+      seller: hero.client.name,
+      sellerPhoto: (hero.client.image as ImageInfo | null)?.url ?? null,
+      sellerOnline: onlineIds().has(hero.client.id),
+    },
+  };
 }
 
-type Listing = Awaited<ReturnType<typeof loadPublicData>>['groups'][number]['posts'][number];
+const steps: { icon: LucideIcon; title: string; text: string; tone: string }[] = [
+  { icon: Search, title: 'Find', text: 'Browse reviewed listings and save the ones you like to your cart.', tone: 'text-primary' },
+  { icon: Timer, title: 'Hold', text: 'Confirm and the account is yours alone for 5 minutes.', tone: 'text-state-warn' },
+  { icon: Wallet, title: 'Pay and check', text: 'Pay the seller, then send your payment link. Only they can see it.', tone: 'text-primary' },
+  { icon: CircleCheck, title: 'Done', text: 'The seller confirms and your chat with them stays open.', tone: 'text-primary' },
+];
 
-function KindMark({ kind, className = 'size-10' }: { kind: AccountKind; className?: string }) {
-  return (
-    <span className={`${className} shrink-0 overflow-hidden rounded-lg border border-line bg-bg-elev`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={coverSrc(null, kind)} alt="" className={coverClass(null, kind, 'p-1')} />
-    </span>
-  );
-}
+const safety: { icon: LucideIcon; title: string; text: string; tone: string }[] = [
+  { icon: ShieldCheck, title: 'Reviewed listings', text: 'Every seller and every listing is checked by our team before it goes live.', tone: 'bg-primary/15 text-primary' },
+  { icon: Timer, title: 'One buyer at a time', text: 'A hold locks the listing to you, so nobody can buy it out from under you.', tone: 'bg-state-warn/15 text-state-warn' },
+  { icon: Lock, title: 'Private details', text: 'Only you, the seller and our team can see your payment and checking info.', tone: 'bg-teal-500/15 text-teal-600 dark:text-teal-300' },
+  { icon: MessagesSquare, title: 'Real chat', text: 'Talk to sellers and to our support team at any time, before and after you buy.', tone: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
+];
 
-function ListingCard({ p }: { p: Listing }) {
-  const image = (p.image as ImageInfo | null)?.url;
-  return (
-    <Link href="/register" className="panel group flex h-full flex-col p-4 transition-shadow hover:shadow-lift">
-      <div className="flex gap-3">
-        <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-bg-elev">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverSrc(image, p.kind)} alt={p.title} className={coverClass(image, p.kind, 'p-1.5')} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <p className="truncate font-semibold group-hover:text-brand-mint">{p.name || p.title}</p>
-            <p className="shrink-0 text-lg font-bold tabular-nums">{formatPrice(p.price)}</p>
-          </div>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-mid">
-            <span className="inline-flex items-center gap-1">
-              {p.client.name}
-              <BadgeCheck className="size-3.5 text-brand-mint" aria-label="Reviewed seller" />
-            </span>
-            {p.kind === 'LINKEDIN' && (
-              <>
-                <span className="text-line" aria-hidden="true">·</span>
-                <span className="tabular-nums">{p.connects} connects</span>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-      <div className="mt-3 flex items-center justify-between border-t border-line pt-3">
-        <span className="text-xs font-medium text-ink-lo">{ACCOUNT_KIND_LABEL[p.kind]}</span>
-        {p.status === 'PROGRESSING' ? (
-          <span className="text-xs font-medium text-brand-purple">On hold</span>
-        ) : (
-          <span className="text-xs font-medium text-brand-mint">Available</span>
-        )}
-      </div>
-    </Link>
-  );
-}
-
-const steps = [
-  {
-    title: 'Find',
-    text: 'Browse reviewed accounts. Save to cart.',
-  },
-  {
-    title: 'Hold',
-    text: 'Confirm. It is yours for 5 minutes.',
-  },
-  {
-    title: 'Check',
-    text: 'Send your checking link. Kept private.',
-  },
-  {
-    title: 'Done',
-    text: 'Seller confirms. Chat continues.',
-  },
+const sellerPerks: { icon: LucideIcon; title: string; note: string }[] = [
+  { icon: Zap, title: 'Fast requests', note: 'Buyers come to you' },
+  { icon: Activity, title: 'Live status', note: 'See every hold and sale' },
+  { icon: Check, title: 'One-click confirm', note: 'Approve payments in chat' },
 ];
 
 const faqs = [
   {
     q: 'What happens if the 5 minutes run out?',
-    a: 'It goes back on the market. Anyone can confirm it again. The clock pauses while the seller reviews.',
+    a: 'The hold is released and the listing goes back to available, so another buyer can confirm it. You can hold it again if it is still free.',
   },
-  {
-    q: 'Can two buyers hold the same account?',
-    a: 'No. Only one buyer can hold it at a time.',
-  },
-  {
-    q: 'Who can see my checking info?',
-    a: 'Only you and the seller.',
-  },
-  {
-    q: 'How do I become a seller?',
-    a: 'Sign up, then message us in support chat.',
-  },
-  {
-    q: 'Do I need to refresh?',
-    a: 'No. Everything updates live.',
-  },
+  { q: 'Can two buyers hold the same account?', a: 'No. A hold locks the listing to one buyer until it is done or the time runs out.' },
+  { q: 'Who can see my checking info?', a: 'Only you, the seller of that account, and our team.' },
+  { q: 'How do I become a seller?', a: 'Create an account, then message us in support chat. We review you and set you up as a seller.' },
+  { q: 'Do I need to refresh the page?', a: 'No. Holds, prices, chats and status all update live.' },
 ];
 
-function HoldCard() {
+/** Example of a hold, built from a real listing when there is one. */
+function HoldCard({ hero }: { hero: NonNullable<Awaited<ReturnType<typeof loadPublicData>>['hero']> | null }) {
+  const name = hero?.name ?? 'LinkedIn account';
+  const row = (state: 'done' | 'now' | 'next', label: string, extra?: string) => (
+    <li className="flex items-center gap-3 text-sm">
+      {state === 'done' ? (
+        <span className="flex size-5 items-center justify-center rounded-full bg-primary text-on-primary">
+          <Check className="size-3" strokeWidth={3} />
+        </span>
+      ) : state === 'now' ? (
+        <span className="flex size-5 items-center justify-center rounded-full bg-state-warn">
+          <span className="size-1.5 rounded-full bg-bg-card" />
+        </span>
+      ) : (
+        <span className="size-5 rounded-full border border-line" />
+      )}
+      <span className={cn('flex-1', state === 'next' ? 'text-ink-lo' : state === 'now' ? 'font-semibold text-ink-hi' : 'text-ink-mid')}>{label}</span>
+      {extra && <span className="text-xs text-ink-lo">{extra}</span>}
+    </li>
+  );
   return (
-    <div className="panel w-full max-w-md p-5 shadow-lift">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-ink-lo">Example link</span>
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-purple/10 px-2 py-0.5 text-[11px] font-semibold text-brand-purple">
-          <span className="size-1.5 rounded-full bg-brand-purple" /> Held for you
+    <div className="relative mx-auto w-full max-w-md lg:mx-0">
+      <div className="absolute -left-16 -top-14 hidden items-center gap-3 rounded-xl border border-line bg-bg-card/95 px-3 py-2.5 shadow-lift backdrop-blur sm:flex">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-300">
+          <ShieldCheck className="size-4" />
+        </span>
+        <span className="leading-tight">
+          <span className="block text-xs font-semibold text-ink-hi">Listing reviewed</span>
+          <span className="block text-[11px] text-ink-lo">by the inonlink team</span>
         </span>
       </div>
-      <div className="mt-4 flex gap-3">
-        <div className="size-16 shrink-0 overflow-hidden rounded-lg bg-bg-elev">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/post-default.jpg" alt="" className="size-full object-cover" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <p className="truncate font-semibold">Link</p>
-            <p className="shrink-0 text-xl font-bold tabular-nums">$50.00</p>
+
+      <div className="rounded-2xl border border-line bg-bg-card p-5 shadow-lift">
+        <div className="flex items-center gap-3">
+          <AccountThumb name={name} photo={hero?.photo} className="size-12 rounded-xl" />
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate font-semibold text-ink-hi">{name}</p>
+            {hero?.detail && <p className="mt-0.5 text-xs text-ink-lo">{hero.detail}</p>}
           </div>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-mid">
-            <span className="inline-flex items-center gap-1">
-              Payal
-              <BadgeCheck className="size-3.5 text-brand-mint" aria-label="Reviewed seller" />
-            </span>
-            <span className="text-line" aria-hidden="true">·</span>
-            <span className="tabular-nums">300 connects</span>
-          </p>
+          <p className="font-display text-2xl font-bold tabular-nums text-ink-hi">{formatPrice(hero?.price ?? 43)}</p>
         </div>
+        <div className="mt-4 rounded-xl border border-state-warn/40 bg-state-warn/10 px-3.5 py-3 text-state-warn">
+          <div className="flex items-center justify-between text-sm">
+            <span>Held for you</span>
+            <span className="font-mono text-lg font-bold">04:12</span>
+          </div>
+          <div className="relative mt-2 h-1.5 overflow-hidden rounded-full">
+            <div className="absolute inset-0 bg-current opacity-15" />
+            <div className="relative h-full w-[66%] rounded-full bg-current" />
+          </div>
+        </div>
+        <ol className="mt-4 space-y-3">
+          {row('done', 'Added to cart')}
+          {row('now', 'On hold for you', '5 min')}
+          {row('next', 'Seller checks payment')}
+          {row('next', 'Done, chat stays open')}
+        </ol>
       </div>
 
-      <ol className="mt-5 space-y-3 border-t border-line pt-5 text-sm">
-        <li className="flex items-center gap-3">
-          <span className="flex size-6 items-center justify-center rounded-full bg-primary text-on-primary"><Check className="size-3.5" /></span>
-          <span className="text-ink-mid">Saved</span>
-        </li>
-        <li className="flex items-center gap-3">
-          <span className="flex size-6 items-center justify-center rounded-full bg-primary text-on-primary"><Check className="size-3.5" /></span>
-          <span className="flex-1 font-medium">On hold for you</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-brand-purple/10 px-2 py-0.5 font-mono text-xs font-semibold text-brand-purple">
-            <Timer className="size-3.5" /> 04:12
+      {hero && (
+        <div className="absolute -bottom-10 -left-12 hidden items-center gap-2.5 rounded-xl border border-line bg-bg-card/95 px-3 py-2.5 shadow-lift backdrop-blur sm:flex">
+          {hero.sellerPhoto ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={hero.sellerPhoto} alt="" className="size-7 rounded-full object-cover" />
+          ) : (
+            <span className="flex size-7 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">{hero.seller[0]?.toUpperCase()}</span>
+          )}
+          <span className="leading-tight">
+            <span className="block text-xs text-ink-mid">
+              <span className="font-semibold text-ink-hi">{hero.seller}</span> {hero.sellerOnline ? 'is online' : 'reviewed seller'}
+            </span>
+            <span className="block text-[11px] text-ink-lo">{hero.sellerOnline ? 'replies in chat' : 'chat with them after you hold'}</span>
           </span>
-        </li>
-        <li className="flex items-center gap-3">
-          <span className="size-6 rounded-full border-2 border-dashed border-line" />
-          <span className="text-ink-lo">Seller checks</span>
-        </li>
-        <li className="flex items-center gap-3">
-          <span className="size-6 rounded-full border-2 border-dashed border-line" />
-          <span className="text-ink-lo">Done</span>
-        </li>
-      </ol>
+        </div>
+      )}
     </div>
   );
 }
@@ -204,20 +200,23 @@ export default async function Landing() {
   const data = await loadPublicData();
 
   return (
-    <div className="min-h-screen bg-bg-card">
-      <header className="sticky top-0 z-30 border-b border-line bg-bg-card">
+    <div className="min-h-screen bg-bg-deep">
+      <header className="sticky top-0 z-30 border-b border-line/70 bg-bg-deep/85 backdrop-blur">
         <div className={`${wrap} flex h-16 items-center gap-8`}>
           <Logo />
           <nav className="hidden gap-7 text-sm font-medium text-ink-mid md:flex">
             <a href="#listings" className="hover:text-ink-hi">Accounts</a>
             <a href="#how" className="hover:text-ink-hi">How it works</a>
             <a href="#safety" className="hover:text-ink-hi">Safety</a>
+            <a href="#sellers" className="hover:text-ink-hi">For sellers</a>
             <a href="#faq" className="hover:text-ink-hi">FAQ</a>
           </nav>
-          <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <ThemeToggle />
-            <Link href="/login" className="rounded-full px-4 py-2 text-sm font-semibold text-ink-hi hover:bg-bg-elev">Log in</Link>
-            <Link href="/register" className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover">
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle className="hidden rounded-xl border border-line sm:inline-flex" />
+            <Link href="/login" className="rounded-xl border border-line px-4 py-2 text-sm font-semibold text-ink-hi hover:bg-bg-elev">
+              Log in
+            </Link>
+            <Link href="/register" className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-[0_8px_24px_-8px_rgb(var(--primary)/0.7)] hover:bg-primary-hover">
               Sign up
             </Link>
           </div>
@@ -225,148 +224,96 @@ export default async function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-line bg-bg-deep">
+      <section className="relative overflow-hidden">
         <CanvasBackground />
-        <div className={`${wrap} relative grid items-center gap-12 pb-28 pt-16 lg:grid-cols-[1.15fr_1fr] lg:pb-36 lg:pt-24`}>
+        <div className="pointer-events-none absolute -right-40 top-0 size-[36rem] rounded-full bg-primary/10 blur-3xl" />
+        <div className={`${wrap} relative grid items-center gap-14 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:pb-20 lg:pt-20`}>
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-line bg-bg-card px-3 py-1 text-xs font-medium text-ink-mid">
-              <span className="size-1.5 rounded-full bg-brand-mint" />
-              {data.live > 0 ? `${data.live} account${data.live === 1 ? '' : 's'} available` : 'New accounts daily'}
+            <p className="inline-flex items-center gap-2 rounded-full border border-line bg-bg-card/80 px-3 py-1 text-xs font-medium text-ink-mid">
+              <span className="size-1.5 rounded-full bg-state-ok" />
+              {data.live > 0 ? `${data.live} account${data.live === 1 ? '' : 's'} available now` : 'New accounts daily'}
             </p>
-            <h1 className="mt-5 text-4xl font-bold leading-[1.1] sm:text-5xl lg:text-[3.4rem]">
-              Reviewed accounts. Real sellers.
+            <h1 className="mt-5 font-display text-5xl font-bold leading-[1.02] tracking-tight text-ink-hi sm:text-6xl">
+              Reviewed
+              <br />
+              accounts.
+              <br />
+              <span className="bg-gradient-to-r from-[#5b8cff] to-[#2dd4bf] bg-clip-text text-transparent">Real sellers.</span>
             </h1>
-            <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-mid">
-              LinkedIn, GV, Gmail, WhatsApp and Telegram. Checked, held for you, confirmed in chat.
+            <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-mid">
+              LinkedIn, Google Voice, Gmail, WhatsApp and Telegram accounts. Each one is checked by our team, held for one buyer at a time, and confirmed in chat.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link href="/register" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-on-primary hover:bg-primary-hover">
-                Browse <ArrowRight className="size-4" />
-              </Link>
-              <a href="#how" className="inline-flex items-center gap-2 rounded-full px-5 py-3 font-semibold text-ink-hi hover:bg-bg-elev">
+              <a href="#listings" className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary shadow-[0_10px_30px_-10px_rgb(var(--primary)/0.8)] hover:bg-primary-hover">
+                Browse accounts <ArrowRight className="size-4" />
+              </a>
+              <a href="#how" className="rounded-xl border border-line bg-bg-card/60 px-5 py-3 font-semibold text-ink-hi hover:bg-bg-elev">
                 How it works
               </a>
             </div>
-            <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-mid">
-              {['Reviewed', 'One buyer at a time', 'Private'].map((t) => (
+            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-mid">
+              {['Every listing reviewed', 'One buyer at a time', 'Private chat'].map((t) => (
                 <li key={t} className="flex items-center gap-2">
-                  <Check className="size-4 text-brand-mint" /> {t}
+                  <Check className="size-4 text-teal-600 dark:text-teal-300" /> {t}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="flex justify-center lg:justify-end">
-            <HoldCard />
+          <div className="lg:pl-10">
+            <HoldCard hero={data.hero} />
           </div>
         </div>
-      </section>
 
-      {/* Real numbers: a floating card overlapping the hero */}
-      <section className="relative z-10 -mt-14">
-        <div className={wrap}>
-          <dl className="panel grid overflow-hidden shadow-lift sm:grid-cols-3">
+        {/* Real numbers */}
+        <div className={`${wrap} relative pb-16`}>
+          <dl className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-bg-card/80 backdrop-blur lg:grid-cols-4">
             {[
-              { icon: Activity, label: 'Accounts live', value: data.live, note: 'Ready to hold', live: true },
-              { icon: Handshake, label: 'Deals completed', value: data.completed, note: 'Confirmed by sellers', live: false },
-              { icon: BadgeCheck, label: 'Reviewed sellers', value: data.sellers, note: 'Verified by our team', live: false },
-            ].map(({ icon: Icon, label, value, note, live }, i) => (
-              <div key={label} className={`flex items-start gap-4 p-6 ${i > 0 ? 'border-t border-line sm:border-l sm:border-t-0' : ''}`}>
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-mint/10 text-brand-mint">
-                  <Icon className="size-5" strokeWidth={2} />
-                </span>
-                <div className="min-w-0">
-                  <dt className="flex items-center gap-2 text-sm font-medium text-ink-mid">
-                    {label}
-                    {live && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-state-ok/10 px-2 py-0.5 text-[11px] font-semibold text-state-ok">
-                        <span className="relative flex size-1.5">
-                          <span className="absolute inline-flex size-full rounded-full bg-state-ok opacity-70 motion-safe:animate-ping" />
-                          <span className="relative inline-flex size-1.5 rounded-full bg-state-ok" />
-                        </span>
-                        Live
-                      </span>
-                    )}
-                  </dt>
-                  <dd className="mt-1 text-3xl font-bold tabular-nums tracking-tight">{value.toLocaleString()}</dd>
-                  <p className="mt-1 text-xs text-ink-lo">{note}</p>
-                </div>
+              { value: data.live.toLocaleString(), label: 'Accounts live now' },
+              { value: data.completed.toLocaleString(), label: 'Deals completed' },
+              { value: data.sellers.toLocaleString(), label: 'Reviewed sellers' },
+              { value: '5 min', label: 'Hold time per buyer' },
+            ].map((s, i) => (
+              <div key={s.label} className={cn('p-6', i % 2 === 1 && 'border-l border-line', i >= 2 && 'border-t border-line lg:border-t-0', i === 2 && 'lg:border-l')}>
+                <dd className="font-display text-3xl font-bold tabular-nums text-ink-hi">{s.value}</dd>
+                <dt className="mt-1 text-sm text-ink-lo">{s.label}</dt>
               </div>
             ))}
           </dl>
         </div>
       </section>
 
-      {/* Account types and latest real listings */}
-      <section id="listings" className="scroll-mt-16 py-20">
+      {/* Marketplace */}
+      <section id="listings" className="scroll-mt-16 border-y border-line/70 bg-bg-base py-20">
         <div className={wrap}>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-bold">Available accounts</h2>
-              <p className="mt-2 text-ink-mid">Five types. All reviewed.</p>
+              <p className={eyebrow}>Marketplace</p>
+              <h2 className={h2}>Available accounts</h2>
+              <p className="mt-2 text-ink-mid">Five account types, every listing reviewed before it goes live.</p>
             </div>
-            <Link href="/register" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-mint hover:underline">
-              See all <ArrowRight className="size-4" />
+            <Link href="/register" className="inline-flex items-center gap-2 rounded-xl border border-line bg-bg-card px-4 py-2.5 text-sm font-semibold text-ink-hi hover:bg-bg-elev">
+              See all accounts <ArrowRight className="size-4" />
             </Link>
           </div>
-
-          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {ACCOUNT_KINDS.map((kind) => {
-              const count = data.liveByKind[kind];
-              return (
-                <li key={kind}>
-                  <a
-                    href={count > 0 ? `#accounts-${kind.toLowerCase()}` : '/register'}
-                    className="panel flex h-full items-center gap-3 p-4 transition-shadow hover:shadow-lift"
-                  >
-                    <KindMark kind={kind} />
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold">{ACCOUNT_KIND_LABEL[kind]}</span>
-                      <span className={`block text-xs tabular-nums ${count > 0 ? 'text-brand-mint' : 'text-ink-lo'}`}>
-                        {count > 0 ? `${count} live` : 'Coming soon'}
-                      </span>
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-
-          {data.groups.map(({ kind, posts }) => (
-            <div key={kind} id={`accounts-${kind.toLowerCase()}`} className="mt-12 scroll-mt-20">
-              <div className="flex items-center gap-3">
-                <KindMark kind={kind} className="size-8" />
-                <div className="min-w-0">
-                  <h3 className="text-xl font-bold">{ACCOUNT_KIND_LABEL[kind]}</h3>
-                  <p className="text-xs text-ink-lo">{KIND_NOTE[kind]}</p>
-                </div>
-                <span className="ml-auto text-xs font-semibold tabular-nums text-brand-mint">{data.liveByKind[kind]} live</span>
-              </div>
-              <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {posts.map((p) => (
-                  <li key={p.id}>
-                    <ListingCard p={p} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <LandingMarket listings={data.listings} counts={data.counts} />
         </div>
       </section>
 
       {/* How it works */}
-      <section id="how" className="scroll-mt-16 border-y border-line bg-bg-deep py-20">
+      <section id="how" className="scroll-mt-16 py-20">
         <div className={wrap}>
-          <div className="max-w-2xl">
-            <h2 className="text-3xl font-bold">How it works</h2>
-            <p className="mt-3 text-ink-mid">
-              Four steps. No racing other buyers.
-            </p>
-          </div>
-          <ol className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <p className={eyebrow}>How it works</p>
+          <h2 className={h2}>Four steps. No racing other buyers.</h2>
+          <p className="mt-2 max-w-md text-ink-mid">When you confirm a listing, it is locked to you for five minutes while you pay.</p>
+          <ol className="relative mt-12 grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+            <span className="absolute left-6 right-[10%] top-6 hidden h-px bg-gradient-to-r from-line via-primary/40 to-transparent lg:block" aria-hidden="true" />
             {steps.map((s, i) => (
-              <li key={s.title}>
-                <span className="font-mono text-sm font-semibold text-brand-mint">0{i + 1}</span>
-                <h3 className="mt-2 text-lg font-semibold">{s.title}</h3>
+              <li key={s.title} className="relative">
+                <span className={cn('relative flex size-12 items-center justify-center rounded-xl border border-line bg-bg-card', s.tone)}>
+                  <s.icon className="size-5" />
+                  <span className="absolute -right-3 -top-2 rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary">0{i + 1}</span>
+                </span>
+                <h3 className="mt-5 font-display text-lg font-semibold text-ink-hi">{s.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink-mid">{s.text}</p>
               </li>
             ))}
@@ -375,116 +322,173 @@ export default async function Landing() {
       </section>
 
       {/* Safety */}
-      <section id="safety" className="scroll-mt-16 py-20">
-        <div className={`${wrap} grid gap-12 lg:grid-cols-[1fr_1.4fr]`}>
+      <section id="safety" className="scroll-mt-16 pb-20">
+        <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_1.35fr]`}>
           <div>
-            <h2 className="text-3xl font-bold">Safe by design</h2>
-            <p className="mt-3 text-ink-mid">Enforced by the platform.</p>
+            <p className={eyebrow}>Safety</p>
+            <h2 className={h2}>Safe by design</h2>
+            <p className="mt-2 text-ink-mid">These rules are built into the platform, not left to trust.</p>
           </div>
-          <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2">
-            {[
-              { icon: UserCheck, title: 'Reviewed', text: 'Every seller and link checked.' },
-              { icon: Clock3, title: 'One buyer at a time', text: 'A hold locks it to you alone.' },
-              { icon: Lock, title: 'Private', text: 'Only buyer, seller and team see details.' },
-              { icon: MessagesSquare, title: 'Real chat', text: 'Talk to sellers and support anytime.' },
-            ].map(({ icon: Icon, title, text }) => (
-              <div key={title}>
-                <Icon className="size-6 text-brand-mint" strokeWidth={1.75} />
-                <h3 className="mt-3 font-semibold">{title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-mid">{text}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {safety.map((s) => (
+              <div key={s.title} className="rounded-2xl border border-line bg-bg-card p-5">
+                <span className={cn('flex size-10 items-center justify-center rounded-xl', s.tone)}>
+                  <s.icon className="size-5" />
+                </span>
+                <h3 className="mt-4 font-semibold text-ink-hi">{s.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-mid">{s.text}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Sellers */}
-      <section className="pb-20">
+      {/* For sellers */}
+      <section id="sellers" className="scroll-mt-16 pb-20">
         <div className={wrap}>
-          <div className="panel grid gap-8 p-8 sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
-            <div>
-              <p className="text-sm font-semibold text-brand-mint">For sellers</p>
-              <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Send a list. We do the rest.</h2>
-              <p className="mt-3 text-ink-mid">
-                One line per link. We publish it. You get alerts.
-              </p>
+          <div className="relative overflow-hidden rounded-3xl border border-line bg-bg-card p-8 sm:p-10">
+            <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-teal-400/15 blur-3xl" />
+            <div className="relative grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
+              <div>
+                <p className={eyebrow}>For sellers</p>
+                <h2 className={h2}>Send a list. We do the rest.</h2>
+                <p className="mt-3 max-w-lg text-ink-mid">
+                  Send one line per account. We review and publish each listing, and you get an alert the moment someone holds one.
+                </p>
+                <Link href="/register" className="mt-6 inline-flex rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary shadow-[0_10px_30px_-10px_rgb(var(--primary)/0.8)] hover:bg-primary-hover">
+                  Become a seller
+                </Link>
+              </div>
+              <ul className="space-y-3">
+                {sellerPerks.map((p) => (
+                  <li key={p.title} className="flex items-center gap-3 rounded-xl border border-line bg-bg-base/70 px-4 py-3">
+                    <p.icon className="size-4 text-teal-600 dark:text-teal-300" />
+                    <span className="flex-1 text-sm font-medium text-ink-hi">{p.title}</span>
+                    <span className="text-xs text-ink-lo">{p.note}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-3 text-sm">
-              {['Fast requests', 'Live status', 'One-click confirm'].map((t) => (
-                <li key={t} className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-brand-mint" /> <span className="text-ink-mid">{t}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="scroll-mt-16 border-t border-line bg-bg-deep py-20">
-        <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_1.6fr]`}>
+      <section id="faq" className="scroll-mt-16 pb-20">
+        <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_1.35fr]`}>
           <div>
-            <h2 className="text-3xl font-bold">FAQ</h2>
-            <p className="mt-3 text-ink-mid">More? Ask us in chat.</p>
+            <p className={eyebrow}>FAQ</p>
+            <h2 className={h2}>Questions, answered</h2>
+            <div className="mt-6 flex items-center gap-3 rounded-xl border border-line bg-bg-card p-4">
+              <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <MessageCircle className="size-4" />
+              </span>
+              <p className="text-sm leading-tight">
+                <span className="block font-semibold text-ink-hi">Still have a question?</span>
+                <span className="text-ink-lo">
+                  Ask us in chat or write to{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand-mint hover:underline">
+                    {SUPPORT_EMAIL}
+                  </a>
+                </span>
+              </p>
+            </div>
           </div>
           <div className="divide-y divide-line border-y border-line">
-            {faqs.map((f) => (
-              <details key={f.q} className="group py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
+            {faqs.map((f, i) => (
+              <details key={f.q} className="group py-4" open={i === 0}>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium text-ink-hi [&::-webkit-details-marker]:hidden">
                   {f.q}
-                  <ChevronDown className="size-5 shrink-0 text-ink-lo transition-transform group-open:rotate-180" />
+                  <span className="relative size-4 shrink-0 text-ink-lo" aria-hidden="true">
+                    <span className="absolute left-0 top-1/2 h-px w-4 -translate-y-1/2 bg-current transition group-open:rotate-45" />
+                    <span className="absolute left-0 top-1/2 h-px w-4 -translate-y-1/2 rotate-90 bg-current transition group-open:rotate-[135deg]" />
+                  </span>
                 </summary>
-                <p className="mt-3 text-sm leading-relaxed text-ink-mid">{f.a}</p>
+                <p className="mt-3 pr-8 text-sm leading-relaxed text-ink-mid">{f.a}</p>
               </details>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Final call to action */}
-      <section className="bg-primary">
-        <div className={`${wrap} flex flex-col items-start justify-between gap-6 py-14 sm:flex-row sm:items-center`}>
-          <div>
-            <h2 className="text-2xl font-bold text-on-primary sm:text-3xl">Find your next account.</h2>
-            <p className="mt-2 text-on-primary/80">Free to join.</p>
+      {/* Call to action */}
+      <section className="pb-20">
+        <div className={wrap}>
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#2f5bea] via-[#3b6cf6] to-[#22a6b3] px-8 py-10 sm:px-12">
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-1/2 opacity-40"
+              style={{ backgroundImage: 'radial-gradient(rgb(255 255 255 / 0.35) 1px, transparent 1px)', backgroundSize: '14px 14px', maskImage: 'linear-gradient(to left, black, transparent)' }}
+            />
+            <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
+              <div>
+                <h2 className="font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">Find your next account.</h2>
+                <p className="mt-2 text-white/80">Free to join. See live listings without an account.</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/register" className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#1d3fbf] hover:bg-white/90">
+                  Join free
+                </Link>
+                <a href="#listings" className="rounded-xl border border-white/50 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
+                  Browse accounts
+                </a>
+              </div>
+            </div>
           </div>
-          <Link href="/register" className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-6 py-3 font-semibold text-[#0A66C2] hover:bg-white/90">
-            Join free <ArrowRight className="size-4" />
-          </Link>
         </div>
       </section>
 
-      <footer className="border-t border-line bg-bg-deep">
-        <div className={`${wrap} grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]`}>
+      <footer className="border-t border-line/70 bg-bg-base">
+        <div className={`${wrap} grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
           <div>
             <Logo />
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-mid">
-              Reviewed LinkedIn, GV, Gmail, WhatsApp and Telegram accounts from real sellers. Each one is checked, held for one buyer, and confirmed in chat.
+            <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-lo">
+              Reviewed LinkedIn, Google Voice, Gmail, WhatsApp and Telegram accounts from real sellers. Each one is checked, held for one buyer, and confirmed in chat.
             </p>
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-lo">Support</p>
-            <p className="mt-3 text-sm leading-relaxed text-ink-mid">Questions or a problem with a link? Write the support team.</p>
-            <a href="mailto:support@inonlink.com" className="mt-2 inline-block text-sm font-semibold text-brand-mint hover:underline">
-              support@inonlink.com
-            </a>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-lo">On this page</p>
-            <nav className="mt-3 flex flex-col gap-2 text-sm text-ink-mid">
-              <a href="#listings" className="hover:text-ink-hi">Available accounts</a>
-              <a href="#how" className="hover:text-ink-hi">How it works</a>
-              <a href="#safety" className="hover:text-ink-hi">Safety</a>
-              <a href="#faq" className="hover:text-ink-hi">FAQ</a>
-              <Link href="/login" className="hover:text-ink-hi">Log in</Link>
-              <Link href="/register" className="hover:text-ink-hi">Sign up</Link>
-            </nav>
-          </div>
+          {[
+            {
+              title: 'Marketplace',
+              links: [
+                ['Accounts', '#listings'],
+                ['How it works', '#how'],
+                ['Safety', '#safety'],
+                ['FAQ', '#faq'],
+              ],
+            },
+            {
+              title: 'Sellers',
+              links: [
+                ['Become a seller', '#sellers'],
+                ['Seller login', '/login'],
+              ],
+            },
+            {
+              title: 'Support',
+              links: [
+                [SUPPORT_EMAIL, `mailto:${SUPPORT_EMAIL}`],
+                ['Log in', '/login'],
+                ['Sign up', '/register'],
+              ],
+            },
+          ].map((col) => (
+            <div key={col.title}>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-lo">{col.title}</p>
+              <ul className="mt-4 space-y-2.5 text-sm">
+                {col.links.map(([label, href]) => (
+                  <li key={label}>
+                    <a href={href} className="text-ink-mid hover:text-ink-hi">
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
-        <div className="border-t border-line">
+        <div className="border-t border-line/70">
           <div className={`${wrap} flex flex-col gap-2 py-5 text-xs text-ink-lo sm:flex-row sm:items-center sm:justify-between`}>
             <span>© {new Date().getFullYear()} inonlink</span>
-            <span>Support replies at support@inonlink.com</span>
+            <span>Support usually replies within a few hours</span>
           </div>
         </div>
       </footer>

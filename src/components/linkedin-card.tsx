@@ -37,7 +37,7 @@ function LinkInMark({ className }: { className?: string }) {
 const COVER_TINTS = ['blue', 'orange', 'green', 'purple'] as const;
 
 /** Same account, same colour: a small stable hash of the name picks the tint. */
-function coverTint(name: string) {
+export function coverTint(name: string) {
   let hash = 0;
   for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return COVER_TINTS[hash % COVER_TINTS.length]!;

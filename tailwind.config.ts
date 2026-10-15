@@ -9,6 +9,7 @@ export default {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: { display: ['var(--font-display)', 'var(--font-sans)', 'sans-serif'] },
       colors: {
         bg: {
           deep: v('bg-deep'),

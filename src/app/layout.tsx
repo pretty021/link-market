@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import { Plus_Jakarta_Sans, Poppins } from 'next/font/google';
 import './globals.css';
 
 const font = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-sans' });
+// Headings on the first page.
+const display = Poppins({ subsets: ['latin'], weight: ['600', '700'], display: 'swap', variable: '--font-display' });
 
 export const metadata: Metadata = {
-  title: 'Marketplace',
-  description: 'Browse fresh links, confirm in real time, and talk directly with the seller.',
+  title: 'inonlink',
+  description: 'Reviewed LinkedIn, Google Voice, Gmail, WhatsApp and Telegram accounts from real sellers.',
 };
 
 export const viewport: Viewport = {
@@ -22,7 +24,7 @@ const themeScript = `try{var t=localStorage.getItem('theme');document.documentEl
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={font.variable} suppressHydrationWarning>
+    <html lang="en" className={`${font.variable} ${display.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
