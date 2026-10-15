@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { addToCart, confirmPost, expireDue, getCart } from '@/server/services/posts';
 import { markChecked, markNotChecked, submitCheck } from '@/server/services/checks';
 import { sendMessage } from '@/server/services/chat';
-import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn } from './helpers';
+import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -23,7 +23,7 @@ describe('countdown expiry', () => {
   it('returns the post to PUBLISHED and lets another Customer confirm it', async () => {
     const { client, holder, other, post } = await setup();
     // Submitted, then Not checked: the countdown runs again (a pending submission would pause it).
-    const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/a');
+    const { check, conversationId } = await submitPaidCheck(holder, post.id, 'https://example.com/a');
     await markNotChecked(client, check.id);
     await setExpiresIn(post.id, -10);
 
@@ -67,10 +67,10 @@ describe('checking info', () => {
   it('notifies the Client and every Admin when a Customer sends a confirm URL', async () => {
     const { client, holder, post } = await setup();
     const admin = await makeAdmin();
-    const { conversationId } = await submitCheck(holder, post.id, 'https://example.com/proof');
+    const { conversationId } = await submitPaidCheck(holder, post.id, 'https://example.com/proof');
     const n = await prisma.notification.findFirstOrThrow({ where: { userId: client.id, type: 'CHECK_SUBMITTED' } });
     expect(n.title).toBe(`${holder.name} is buying Account #1042`);
-    expect(n.body).toBe('$35.01 · 3 connects · https://example.com/proof');
+    expect(n.body).toBe('$35.01 · 3 connects · Paid with USDT TRC20 · https://example.com/proof');
     expect(n.conversationId).toBe(conversationId);
     const adminNote = await prisma.notification.findFirstOrThrow({ where: { adminId: admin.id, type: 'CHECK_SUBMITTED' } });
     expect(adminNote).toMatchObject({ title: n.title, body: n.body, conversationId });
@@ -82,14 +82,14 @@ describe('checking info', () => {
 
   it('only the holder can submit, and only one pending submission at a time', async () => {
     const { other, holder, post } = await setup();
-    await expect(submitCheck(other, post.id, 'https://x.dev')).rejects.toMatchObject({ code: 'NOT_HOLDER' });
-    await submitCheck(holder, post.id, 'https://x.dev/1');
-    await expect(submitCheck(holder, post.id, 'https://x.dev/2')).rejects.toMatchObject({ code: 'CHECK_PENDING' });
+    await expect(submitPaidCheck(other, post.id, 'https://x.dev')).rejects.toMatchObject({ code: 'NOT_HOLDER' });
+    await submitPaidCheck(holder, post.id, 'https://x.dev/1');
+    await expect(submitPaidCheck(holder, post.id, 'https://x.dev/2')).rejects.toMatchObject({ code: 'CHECK_PENDING' });
   });
 
   it('Checked stops the countdown, completes the post, returns the deal chat and notifies the Customer', async () => {
     const { client, holder, post } = await setup();
-    const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/proof');
+    const { check, conversationId } = await submitPaidCheck(holder, post.id, 'https://example.com/proof');
 
     const res = await markChecked(client, check.id);
     expect(res.conversationId).toBe(conversationId);
@@ -118,7 +118,7 @@ describe('checking info', () => {
     const unrelated = await makePublishedPost(client.id, 'Another listing');
     await addToCart(other, unrelated.id);
 
-    const { check } = await submitCheck(holder, post.id, 'https://example.com/proof');
+    const { check } = await submitPaidCheck(holder, post.id, 'https://example.com/proof');
     expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(2);
 
     await markChecked(client, check.id);
@@ -145,7 +145,7 @@ describe('checking info', () => {
 
   it('submitting pauses the countdown (Client Checking): a pending submission never expires', async () => {
     const { holder, post } = await setup();
-    await submitCheck(holder, post.id, 'https://example.com/1');
+    await submitPaidCheck(holder, post.id, 'https://example.com/1');
     const paused = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
     expect(paused.progressingPausedAt).not.toBeNull();
 
@@ -158,7 +158,7 @@ describe('checking info', () => {
   it('Not checked keeps the post PROGRESSING and restarts a full 5-minute countdown', async () => {
     const { client, holder, post } = await setup();
     const before = await prisma.post.findUniqueOrThrow({ where: { id: post.id } });
-    const first = await submitCheck(holder, post.id, 'https://example.com/1');
+    const first = await submitPaidCheck(holder, post.id, 'https://example.com/1');
     await setExpiresIn(post.id, 20_000); // only 20 s were left when the Client reviewed
 
     await markNotChecked(client, first.check.id);
@@ -172,7 +172,7 @@ describe('checking info', () => {
     expect(left).toBeGreaterThan(4.9 * 60_000);
     expect(left).toBeLessThanOrEqual(5 * 60_000);
 
-    const second = await submitCheck(holder, post.id, 'https://example.com/2');
+    const second = await submitPaidCheck(holder, post.id, 'https://example.com/2');
     expect(second.conversationId).toBe(first.conversationId);
     expect(await prisma.notification.count({ where: { userId: client.id, type: 'CHECK_SUBMITTED' } })).toBe(2);
 
@@ -184,11 +184,43 @@ describe('checking info', () => {
 
   it('the Customer can send text in the deal chat only after Checked', async () => {
     const { client, holder, post } = await setup();
-    const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/proof');
+    const { check, conversationId } = await submitPaidCheck(holder, post.id, 'https://example.com/proof');
     await expect(sendMessage(holder, conversationId, 'hello')).rejects.toMatchObject({ code: 'CHECK_REQUIRED' });
     await sendMessage(client, conversationId, 'Looking now');
     await markChecked(client, check.id);
     const sent = await sendMessage(holder, conversationId, 'Thanks!');
     expect(sent.message.body).toBe('Thanks!');
+  });
+});
+
+describe('payment method on checking info', () => {
+  it("saves the chosen method (a copy of the seller's address) and shows it with the check", async () => {
+    const { client, holder, post } = await setup();
+    const pay = await prisma.paymentAddress.create({ data: { clientId: client.id, type: 'USDT TRC20', address: 'TAddr1' } });
+    const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/a', pay.id);
+    expect(check).toMatchObject({ paymentType: 'USDT TRC20', paymentAddress: 'TAddr1' });
+
+    // Later edits to the seller's address don't change what was sent.
+    await prisma.paymentAddress.update({ where: { id: pay.id }, data: { address: 'TAddr2' } });
+    const saved = await prisma.checkSubmission.findUniqueOrThrow({ where: { id: check.id } });
+    expect(saved.paymentAddress).toBe('TAddr1');
+
+    const note = await prisma.notification.findFirstOrThrow({ where: { userId: client.id, conversationId } });
+    expect(note.body).toContain('Paid with USDT TRC20');
+  });
+
+  it('requires a payment method: none sent, or the seller has no address yet', async () => {
+    const { client, holder, post } = await setup();
+    await expect(submitCheck(holder, post.id, 'https://example.com/a')).rejects.toMatchObject({ code: 'NO_PAYMENT_ADDRESS' });
+    await prisma.paymentAddress.create({ data: { clientId: client.id, type: 'USDT TRC20', address: 'TAddr' } });
+    await expect(submitCheck(holder, post.id, 'https://example.com/a')).rejects.toMatchObject({ code: 'PAYMENT_METHOD' });
+    expect(await prisma.checkSubmission.count({ where: { postId: post.id } })).toBe(0);
+  });
+
+  it("rejects a payment method that isn't the seller's", async () => {
+    const { holder, post } = await setup();
+    const stranger = await makeClient();
+    const foreign = await prisma.paymentAddress.create({ data: { clientId: stranger.id, type: 'BTC', address: 'bc1x' } });
+    await expect(submitCheck(holder, post.id, 'https://example.com/a', foreign.id)).rejects.toMatchObject({ code: 'PAYMENT_METHOD' });
   });
 });

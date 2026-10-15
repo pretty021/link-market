@@ -455,6 +455,7 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
   const [title, setTitle] = useState(post.title);
   const [deleting, setDeleting] = useState(false);
   const [image, setImage] = useState<ImageInfo | null>(post.image);
+  const [detailImage, setDetailImage] = useState<ImageInfo | null>(post.detailImage);
   const [connects, setConnects] = useState(String(post.connects));
   const [price, setPrice] = useState(post.price !== null ? post.price.toFixed(2) : '');
   const [saving, setSaving] = useState(false);
@@ -466,6 +467,7 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
     (linkedIn && (name.trim() || null) !== (saved.name ?? null)) ||
     title.trim() !== saved.title ||
     (image?.key ?? null) !== (saved.image?.key ?? null) ||
+    (linkedIn && (detailImage?.key ?? null) !== (saved.detailImage?.key ?? null)) ||
     (linkedIn && Number(connects) !== saved.connects) ||
     (price === '' ? null : Math.round(Number(price) * 100) / 100) !== saved.price;
 
@@ -477,7 +479,7 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
         json: {
           title: title.trim(),
           image,
-          ...(linkedIn ? { name: name.trim(), connects: Number(connects || 0) } : {}),
+          ...(linkedIn ? { name: name.trim(), connects: Number(connects || 0), detailImage } : {}),
           ...(price !== '' ? { price: Number(price) } : {}),
         },
       });
@@ -568,6 +570,15 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
               <Input id={`p-${post.id}`} type="number" min={0} step="0.01" placeholder="50.00" value={price} onChange={(e) => setPrice(e.target.value)} />
             </Field>
           </div>
+          {linkedIn && (
+            <div>
+              <Label>
+                Detail image <span className="font-normal text-ink-lo">(optional)</span>
+              </Label>
+              <p className="mb-2 text-xs text-ink-lo">Buyers open it full size, with zoom.</p>
+              <ImageUpload value={detailImage} onChange={setDetailImage} label="Add detail image" />
+            </div>
+          )}
         </div>
       </div>
       <div className="flex justify-end gap-2 border-t border-line/70 bg-bg-base/40 px-4 py-3">

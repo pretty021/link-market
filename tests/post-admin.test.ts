@@ -120,3 +120,22 @@ describe('progressing notification', () => {
     expect(n.postId).toBe(post.id);
   });
 });
+
+describe('detail image', () => {
+  it('the Admin can add and remove an optional detail image; Customers receive it', async () => {
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id);
+    expect((await listFeed(customer)).posts.find((p) => p.id === post.id)?.detailImage).toBeNull();
+
+    const detailImage = { url: '/uploads/images/d.png', key: 'images/d.png', mimeType: 'image/png' as const, size: 1000, width: 1200, height: 800 };
+    const set = adminPostUpdateSchema.parse({ detailImage });
+    expect((await updatePostByAdmin(post.id, set)).post.detailImage).toMatchObject({ url: detailImage.url });
+    expect((await listFeed(customer)).posts.find((p) => p.id === post.id)?.detailImage).toMatchObject({ url: detailImage.url });
+
+    // Saving without the field keeps it; null removes it.
+    await updatePostByAdmin(post.id, adminPostUpdateSchema.parse({ price: 12 }));
+    expect((await prisma.post.findUniqueOrThrow({ where: { id: post.id } })).detailImage).toMatchObject({ key: detailImage.key });
+    expect((await updatePostByAdmin(post.id, adminPostUpdateSchema.parse({ detailImage: null }))).post.detailImage).toBeNull();
+  });
+});

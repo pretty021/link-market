@@ -72,3 +72,13 @@ export function apiRequest(path: string, init: { method?: string; cookie?: strin
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Sends checking info the way the app does: with one of the seller's payment addresses (made if missing). */
+export async function submitPaidCheck(customer: UserActor, postId: string, url: string) {
+  const { submitCheck } = await import('@/server/services/checks');
+  const post = await prisma.post.findUniqueOrThrow({ where: { id: postId }, select: { clientId: true } });
+  const pay =
+    (await prisma.paymentAddress.findFirst({ where: { clientId: post.clientId } })) ??
+    (await prisma.paymentAddress.create({ data: { clientId: post.clientId, type: 'USDT TRC20', address: 'TTestAddress' } }));
+  return submitCheck(customer, postId, url, pay.id);
+}

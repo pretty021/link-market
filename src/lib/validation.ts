@@ -85,6 +85,8 @@ export const adminPostUpdateSchema = z.object({
     .transform((v) => (v === '' ? null : v))
     .nullish(),
   image: imageSchema.nullish(),
+  /** Optional full-size picture Customers can open and zoom (LinkedIn accounts). */
+  detailImage: imageSchema.nullish(),
   connects: z.coerce.number().int().min(0).max(1_000_000).optional(),
   price: z.coerce
     .number()
@@ -135,6 +137,8 @@ export const clientPostsSchema = z.object({
 });
 
 export const checkUrlSchema = z.object({
+  /** The Client's PaymentAddress the Customer chose to pay with (optional: the Client may have none). */
+  paymentId: z.string().trim().min(1).max(64).optional(),
   url: z
     .string()
     .trim()

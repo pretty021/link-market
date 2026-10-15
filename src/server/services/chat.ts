@@ -2,11 +2,11 @@ import { Prisma, type ConversationType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import type { Actor, AdminActor } from '@/lib/actor';
 import { badRequest, conflict, forbidden, notFound } from '@/lib/errors';
-import { emit, isViewingConversation, rooms } from '@/lib/realtime';
+import { emit, rooms } from '@/lib/realtime';
 import { readChatFile, storeChatFile, type ChatFile } from '@/lib/storage';
 import { Outbox } from '../outbox';
 import { notify } from './notifications';
-import { addMessage, messageInclude, toMessageDTO } from './messages';
+import { addMessage, messageInclude, toCheckDTO, toMessageDTO } from './messages';
 import { canSeeChecks } from './checks';
 import { dbNow, postInclude, toPostDTO } from './posts';
 
@@ -169,7 +169,7 @@ export async function listMessages(actor: Actor, conversationId: string, cursor?
     deal = {
       latestCheck:
         showChecks && latest
-          ? { id: latest.id, postId: latest.postId, customerId: latest.customerId, url: latest.url, status: latest.status, reviewedAt: latest.reviewedAt, createdAt: latest.createdAt }
+          ? toCheckDTO(latest)
           : null,
       canSendText: actor.kind === 'user' && (isClient || latest?.status === 'CHECKED'),
       isHolder,
@@ -227,18 +227,8 @@ async function postMessage(actor: Actor, conversationId: string, content: { body
   const conv = await loadAccessible(actor, conversationId);
   await assertCanSend(actor, conv);
 
-  // Support chats stay quiet for someone who already has that chat open.
-  // A customer and client always notify each other, so the bell shows even if the deal chat is open.
-  const recipients = conv.participants.filter((p) => (actor.kind === 'admin' ? p.adminId !== actor.id : p.userId !== actor.id));
-  const notifyThese: typeof recipients = [];
-  for (const p of recipients) {
-    if (conv.type === 'DEAL') {
-      notifyThese.push(p);
-      continue;
-    }
-    const room = p.userId ? rooms.user(p.userId) : rooms.admin(p.adminId!);
-    if (!(await isViewingConversation(room, conversationId))) notifyThese.push(p);
-  }
+  // Every message notifies everyone else in the chat (deal and support alike), even if they have it open.
+  const notifyThese = conv.participants.filter((p) => (actor.kind === 'admin' ? p.adminId !== actor.id : p.userId !== actor.id));
 
   const out = new Outbox();
   const message = await prisma.$transaction(async (tx) => {

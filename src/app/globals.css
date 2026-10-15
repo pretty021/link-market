@@ -38,6 +38,10 @@
   --logo-fg: 10 37 84;
   --logo-ring: 10 102 194;
   --logo-glow: 0;
+  /* "link / in" mark on the account covers */
+  --cover-link: 47 110 255;
+  --cover-in: 15 27 61;
+  --cover-shadow: 40 80 180;
 }
 
 [data-theme='dark'] {
@@ -71,6 +75,10 @@
   --logo-fg: 255 255 255;
   --logo-ring: 56 199 255;
   --logo-glow: 1;
+  /* "link / in" mark on the account covers */
+  --cover-link: 77 136 255;
+  --cover-in: 255 255 255;
+  --cover-shadow: 0 0 0;
 }
 
 @layer base {
@@ -102,4 +110,35 @@
   .field {
     @apply h-10 w-full rounded-lg border border-line bg-bg-base px-3 text-sm text-ink-hi placeholder:text-ink-lo outline-none transition focus:border-brand-mint focus:ring-2 focus:ring-brand-mint/15 disabled:opacity-50;
   }
+}
+
+/* LinkedIn account cover, tinted per account (data-tint is set by AccountCover).
+   Light: pastel wash using the hue (--h). Dark: banner colours, center -> edge. */
+.acc-cover {
+  background:
+    radial-gradient(circle at 15% 10%, hsl(var(--h) 100% 97%) 0%, transparent 55%),
+    linear-gradient(135deg, hsl(var(--h) 85% 92%), hsl(var(--h) 75% 84%));
+  --acc: hsl(var(--h) 65% 42%);
+  --acc-faint: hsl(var(--h) 60% 50% / 0.13);
+  --tile-bg: rgb(var(--bg-card) / 0.95);
+  --pill-bg: rgb(var(--bg-card) / 0.9);
+  --pill-fg: var(--acc);
+  --circle-bg: rgb(var(--bg-card));
+  --circle-border: rgb(var(--bg-card));
+}
+.acc-cover[data-tint='blue'] { --h: 222; --center: #4466e0; --edge: #253a8a; --acc-dark: #c3cfff; --circle-dark: #2e47a4; --faint-dark: rgb(37 58 138 / 0.55); }
+.acc-cover[data-tint='orange'] { --h: 18; --center: #b0582f; --edge: #5e2d16; --acc-dark: #f6c0a4; --circle-dark: #773a1e; --faint-dark: rgb(94 45 22 / 0.55); }
+.acc-cover[data-tint='green'] { --h: 160; --center: #25a18a; --edge: #155a4d; --acc-dark: #a4ecdc; --circle-dark: #1a6f5f; --faint-dark: rgb(21 90 77 / 0.55); }
+.acc-cover[data-tint='purple'] { --h: 262; --center: #7058de; --edge: #3b2d8a; --acc-dark: #d3c9ff; --circle-dark: #4b3aa3; --faint-dark: rgb(59 45 138 / 0.55); }
+/* Dark: see-through tints of the banner colour instead of solid card colour. */
+[data-theme='dark'] .acc-cover {
+  background: radial-gradient(ellipse at 50% 50%, var(--center) 0%, var(--edge) 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  --acc: var(--acc-dark);
+  --acc-faint: var(--faint-dark);
+  --tile-bg: rgb(0 0 0 / 0.28);
+  --pill-bg: rgb(0 0 0 / 0.25);
+  --pill-fg: rgb(255 255 255 / 0.88);
+  --circle-bg: var(--circle-dark);
+  --circle-border: rgb(255 255 255 / 0.14);
 }

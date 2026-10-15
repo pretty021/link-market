@@ -58,6 +58,8 @@ async function broadcastPresence(a: Actor, online: boolean) {
   if (a.kind !== 'user') return;
   emit(rooms.admins, 'presence:update', { userId: a.id, role: a.role, online, stats: await adminStats() });
   if (a.role === 'CUSTOMER') emit(rooms.clients, 'presence:update', { userId: a.id, role: a.role, online });
+  // Buyers see each seller's Available / Away status on the account cards.
+  if (a.role === 'CLIENT') emit(rooms.customers, 'presence:update', { userId: a.id, role: a.role, online });
 }
 
 function registerSocket(io: Server, socket: Socket) {

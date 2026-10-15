@@ -5,11 +5,8 @@ import { GET as messagesRoute, POST as sendRoute } from '@/app/api/conversations
 import { GET as adminMessagesRoute } from '@/app/api/admin/conversations/[id]/messages/route';
 import { POST as checkedRoute } from '@/app/api/checks/[id]/checked/route';
 import { confirmPost } from '@/server/services/posts';
-import { submitCheck } from '@/server/services/checks';
 import { listAllConversations, startAdminConversation } from '@/server/services/chat';
-import {
-  addToCartDirect, apiRequest, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, sessionCookie,
-} from './helpers';
+import { addToCartDirect, apiRequest, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, sessionCookie, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -24,7 +21,7 @@ async function scenario() {
   await addToCartDirect(holder.id, post.id);
   await addToCartDirect(other.id, post.id);
   await confirmPost(holder, post.id);
-  const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/secret-proof');
+  const { check, conversationId } = await submitPaidCheck(holder, post.id, 'https://example.com/secret-proof');
   const cookies = {
     admin: await sessionCookie({ kind: 'admin', id: admin.id }),
     client: await sessionCookie({ kind: 'user', id: client.id }),

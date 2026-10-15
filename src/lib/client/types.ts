@@ -14,6 +14,8 @@ export type Post = {
   visible: boolean;
   status: PostStatus;
   image: ImageInfo | null;
+  /** Optional full-size picture (LinkedIn accounts); Customers open it in a zoomable viewer. */
+  detailImage: ImageInfo | null;
   connects: number;
   price: number | null;
   approval: boolean;
@@ -21,8 +23,10 @@ export type Post = {
   viewers: number;
   clientId: string;
   clientName: string;
-  /** Seller photo. Sent to admins and the post's client. */
+  /** Seller photo. */
   clientImage: ImageInfo | null;
+  /** Seller has the site open right now (kept live by presence:update). */
+  clientOnline: boolean;
   holderId: string | null;
   holderName: string | null;
   progressingAt: string | null;
@@ -77,6 +81,9 @@ export type Check = {
   postId: string;
   customerId: string;
   url: string;
+  /** Payment method the Customer chose (copied from the Client's address when sent). */
+  paymentType: string | null;
+  paymentAddress: string | null;
   status: CheckStatus;
   reviewedAt: string | null;
   createdAt: string;

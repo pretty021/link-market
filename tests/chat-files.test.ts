@@ -3,8 +3,8 @@ import { prisma } from '@/lib/db';
 import { sniffChatFile } from '@/lib/storage';
 import { getChatFile, listMyConversations, sendFile, sendMessage, startAdminConversation } from '@/server/services/chat';
 import { confirmPost } from '@/server/services/posts';
-import { markChecked, submitCheck } from '@/server/services/checks';
-import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb } from './helpers';
+import { markChecked } from '@/server/services/checks';
+import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -19,7 +19,7 @@ async function dealChat() {
   const post = await makePublishedPost(client.id, 'Account #2001');
   await addToCartDirect(customer.id, post.id);
   await confirmPost(customer, post.id);
-  const { check, conversationId } = await submitCheck(customer, post.id, 'https://example.com/a');
+  const { check, conversationId } = await submitPaidCheck(customer, post.id, 'https://example.com/a');
   return { client, customer, post, check, conversationId };
 }
 

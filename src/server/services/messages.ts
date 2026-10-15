@@ -22,6 +22,8 @@ export function toCheckDTO(c: CheckSubmission) {
     postId: c.postId,
     customerId: c.customerId,
     url: c.url,
+    paymentType: c.paymentType,
+    paymentAddress: c.paymentAddress,
     status: c.status,
     reviewedAt: c.reviewedAt,
     createdAt: c.createdAt,

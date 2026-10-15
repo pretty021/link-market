@@ -1,6 +1,6 @@
 import { DB_NOW, prisma } from '@/lib/db';
 import type { Actor, UserActor } from '@/lib/actor';
-import { conflict, forbidden, notFound } from '@/lib/errors';
+import { badRequest, conflict, forbidden, notFound } from '@/lib/errors';
 import { emit, rooms } from '@/lib/realtime';
 import { Outbox } from '../outbox';
 import { notify } from './notifications';
@@ -33,7 +33,7 @@ function checkRooms(clientId: string, customerId: string) {
 }
 
 /** Customer submits checking info while holding the post (first submit or resubmit after Not checked). */
-export async function submitCheck(customer: UserActor, postId: string, url: string) {
+export async function submitCheck(customer: UserActor, postId: string, url: string, paymentId?: string) {
   const out = new Outbox();
   const result = await prisma.$transaction(async (tx) => {
     // Lock the post row: a concurrent expiry waits for us (or we see its result), and two
@@ -51,9 +51,20 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
     const pending = await tx.checkSubmission.findFirst({ where: { postId, status: 'PENDING' } });
     if (pending) throw conflict('CHECK_PENDING', 'Your checking info is already waiting for the client.');
 
+    // A payment method is required, and it must be one of this Client's addresses.
+    if (!paymentId) {
+      const has = await tx.paymentAddress.count({ where: { clientId: post.clientId } });
+      throw badRequest(
+        has ? 'PAYMENT_METHOD' : 'NO_PAYMENT_ADDRESS',
+        has ? 'Choose the payment method you used.' : 'This seller has no payment address yet. Ask support before sending checking info.',
+      );
+    }
+    const payment = await tx.paymentAddress.findFirst({ where: { id: paymentId, clientId: post.clientId }, select: { type: true, address: true } });
+    if (!payment) throw badRequest('PAYMENT_METHOD', 'Choose one of the seller\'s payment methods.');
+
     const now = await dbNow(tx);
     const check = await tx.checkSubmission.create({
-      data: { postId, customerId: customer.id, url, createdAt: now },
+      data: { postId, customerId: customer.id, url, paymentType: payment.type, paymentAddress: payment.address, createdAt: now },
     });
 
     // "Client Checking": the countdown stops until the Client reviews this submission.
@@ -89,7 +100,9 @@ export async function submitCheck(customer: UserActor, postId: string, url: stri
     const note = {
       type: 'CHECK_SUBMITTED' as const,
       title: `${customer.name} is buying ${name || title}`,
-      body: [name && name !== title ? title : null, price, `${post.connects} connects`, url].filter(Boolean).join(' · '),
+      body: [name && name !== title ? title : null, price, `${post.connects} connects`, `Paid with ${payment.type}`, url]
+        .filter(Boolean)
+        .join(' · '),
       postId,
       conversationId: conv.id,
     };

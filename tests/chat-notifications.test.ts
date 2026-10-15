@@ -1,9 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { confirmPost } from '@/server/services/posts';
-import { markChecked, submitCheck } from '@/server/services/checks';
+import { markChecked } from '@/server/services/checks';
 import { markConversationRead, sendFile, sendMessage, startAdminConversation } from '@/server/services/chat';
-import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb } from './helpers';
+import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -21,7 +21,7 @@ describe('chat notifications', () => {
     const post = await makePublishedPost(client.id);
     await addToCartDirect(customer.id, post.id);
     await confirmPost(customer, post.id);
-    const { check, conversationId } = await submitCheck(customer, post.id, 'https://example.com/proof');
+    const { check, conversationId } = await submitPaidCheck(customer, post.id, 'https://example.com/proof');
     await markChecked(client, check.id);
 
     await sendMessage(client, conversationId, 'one');

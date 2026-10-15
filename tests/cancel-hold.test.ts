@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { cancelHold, confirmPost } from '@/server/services/posts';
-import { markChecked, submitCheck } from '@/server/services/checks';
-import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb } from './helpers';
+import { markChecked } from '@/server/services/checks';
+import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -33,7 +33,7 @@ describe('cancel a hold', () => {
 
   it('closes pending checking info, posts a system message and notifies the Client', async () => {
     const { client, holder, post } = await setup();
-    const { check, conversationId } = await submitCheck(holder, post.id, 'https://example.com/a');
+    const { check, conversationId } = await submitPaidCheck(holder, post.id, 'https://example.com/a');
 
     await cancelHold(holder, post.id);
 
@@ -47,7 +47,7 @@ describe('cancel a hold', () => {
     const { client, holder, other, post } = await setup();
     await expect(cancelHold(other, post.id)).rejects.toMatchObject({ code: 'NOT_HOLDING' });
 
-    const { check } = await submitCheck(holder, post.id, 'https://example.com/a');
+    const { check } = await submitPaidCheck(holder, post.id, 'https://example.com/a');
     await markChecked(client, check.id);
     await expect(cancelHold(holder, post.id)).rejects.toMatchObject({ code: 'POST_COMPLETED' });
     expect((await prisma.post.findUniqueOrThrow({ where: { id: post.id } })).status).toBe('COMPLETED');

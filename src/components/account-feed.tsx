@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Eye, Link2, MessageCircle, ShoppingCart, Users } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
 import { CUSTOMER_STATUS_OPTIONS, ListToolbar, useListControls } from '@/components/list-toolbar';
+import { CustomerAccountTable } from '@/components/account-feed-table';
+import { AccountViewToggle, useAccountView } from '@/components/account-view';
+import { Chip, LinkedInCard, StatusDot, usesAccountCard } from '@/components/linkedin-card';
+import { ImageViewer } from '@/components/image-viewer';
 import { Countdown, PostTitle, StatusBadge, postLabel } from '@/components/post-bits';
 import { useOnReconnect, useRoom, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
@@ -57,6 +61,11 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
   useSocketEvent<{ postId: string; count: number }>('post:viewers', ({ postId, count }) =>
     setPosts((prev) => prev?.map((p) => (p.id === postId ? { ...p, viewers: count } : p)) ?? prev),
   );
+  // A seller came online or left: update their Available / Away status on the cards.
+  useSocketEvent<{ userId?: string; role?: string; online?: boolean }>('presence:update', ({ userId, role, online }) => {
+    if (role !== 'CLIENT' || !userId || online === undefined) return;
+    setPosts((prev) => prev?.map((p) => (p.clientId === userId ? { ...p, clientOnline: online } : p)) ?? prev);
+  });
   useSocketEvent<{ postIds: string[] }>('cart:updated', ({ postIds }) => setCart(new Set(postIds)));
   useSocketEvent<{ post: Post; formerHolderId: string; reason?: 'cancelled' }>('post:expired', ({ post, formerHolderId, reason }) => {
     upsert(post);
@@ -90,8 +99,39 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
   const alive = view.shown?.filter((p) => p.status !== 'COMPLETED') ?? [];
   const completed = view.shown?.filter((p) => p.status === 'COMPLETED') ?? [];
 
+  const [layout, setLayout] = useAccountView('customer-account-view');
+  const group = (items: Post[]) =>
+    layout === 'table' ? (
+      <Card className="overflow-hidden p-0">
+        <CustomerAccountTable
+          posts={items}
+          kind={kind}
+          meId={me.id}
+          cart={cart}
+          busy={busy}
+          onOpen={(p) => setOpenId(p.id)}
+          onToggleCart={(p) => void toggleCart(p)}
+          onExpired={() => void load()}
+        />
+      </Card>
+    ) : (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{items.map(usesAccountCard(kind) ? renderCard : renderLegacyCard)}</div>
+    );
+
   const renderCard = (p: Post) => (
     <LinkCard
+      key={p.id}
+      post={p}
+      mine={p.holderId === me.id}
+      inCart={cart.has(p.id)}
+      busy={busy === p.id}
+      onOpen={() => setOpenId(p.id)}
+      onToggleCart={() => void toggleCart(p)}
+      onExpired={() => void load()}
+    />
+  );
+  const renderLegacyCard = (p: Post) => (
+    <OtherAccountCard
       key={p.id}
       post={p}
       mine={p.holderId === me.id}
@@ -109,11 +149,14 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
         title={title}
         subtitle={subtitle}
         action={
-          <Button asChild variant="purple">
-            <Link href="/cart">
-              <ShoppingCart /> Go to cart ({cart.size})
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {scoped && scoped.length > 0 && <AccountViewToggle value={layout} onChange={setLayout} />}
+            <Button asChild variant="purple">
+              <Link href="/cart">
+                <ShoppingCart /> Go to cart ({cart.size})
+              </Link>
+            </Button>
+          </div>
         }
       />
       {scoped && scoped.length > 0 && (
@@ -134,7 +177,7 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
           ) : alive.length === 0 && completed.length === 0 ? (
             <Card><Empty icon={<Link2 />} title="No links match" hint="Try other filters." /></Card>
           ) : (
-            alive.length > 0 && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{alive.map(renderCard)}</div>
+            alive.length > 0 && group(alive)
           )}
           {completed.length > 0 && (
             <section className="mt-12">
@@ -142,17 +185,72 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
                 <h2 className="text-lg font-semibold">Bought</h2>
                 <span className="rounded-md bg-state-ok/15 px-2 py-0.5 text-xs font-semibold text-state-ok">{completed.length}</span>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{completed.map(renderCard)}</div>
+              {group(completed)}
             </section>
           )}
         </>
       )}
-      <PostDetail post={open} onClose={() => setOpenId(null)} />
+      {usesAccountCard(kind) ? (
+        open?.detailImage && <DetailImage post={open} src={open.detailImage.url} onClose={() => setOpenId(null)} />
+      ) : (
+        <PostDetail post={open} onClose={() => setOpenId(null)} />
+      )}
     </>
   );
 }
 
-function LinkCard({
+type CardProps = {
+  post: Post;
+  mine: boolean;
+  inCart: boolean;
+  busy: boolean;
+  onOpen: () => void;
+  onToggleCart: () => void;
+  onExpired: () => void;
+};
+
+/** LinkedIn accounts: the shared LinkedIn card. */
+function LinkCard({ post, mine, inCart, busy, onOpen, onToggleCart, onExpired }: CardProps) {
+  const done = post.status === 'COMPLETED';
+  return (
+    <LinkedInCard
+      post={post}
+      onOpen={post.detailImage ? onOpen : undefined}
+      connects={(post.kind ?? 'LINKEDIN') === 'LINKEDIN' ? post.connects : undefined}
+      badges={<StatusBadge status={post.status} mine={mine} clientChecking={mine && !!post.progressingPausedAt} />}
+      chips={
+        <>
+          {!done && <Chip icon={<Eye />}>{post.viewers} viewing</Chip>}
+          {post.status === 'PROGRESSING' && mine && (
+            <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
+          )}
+        </>
+      }
+      person={{ name: post.clientName, image: post.clientImage, label: 'Seller', verified: true, online: post.clientOnline }}
+      personStatus={post.clientOnline ? <StatusDot tone="ok">Available</StatusDot> : <StatusDot tone="lo">Away</StatusDot>}
+      action={
+        done ? (
+          <Button asChild variant="outline" className="size-11 rounded-xl px-0"><Link href="/chat" aria-label="Messages" title="Messages"><MessageCircle /></Link></Button>
+        ) : mine ? (
+          <Button asChild variant="purple" className="rounded-xl"><Link href="/cart">Open in cart</Link></Button>
+        ) : (
+          <Button
+            variant={inCart ? 'outline' : 'primary'}
+            loading={busy}
+            disabled={!inCart && post.status !== 'PUBLISHED'}
+            onClick={onToggleCart}
+            className="rounded-xl px-5"
+          >
+            <ShoppingCart /> {inCart ? 'Remove' : post.status === 'PROGRESSING' ? 'In progress' : 'Add'}
+          </Button>
+        )
+      }
+    />
+  );
+}
+
+/** GV, Gmail, WhatsApp and Telegram accounts. */
+function OtherAccountCard({
   post,
   mine,
   inCart,
@@ -207,7 +305,7 @@ function LinkCard({
           <span className="text-xs text-ink-lo">{post.status === 'PROGRESSING' ? 'In progress' : 'Available'}</span>
         )}
         {done ? (
-          <Button asChild size="sm" variant="outline"><Link href="/chat"><MessageCircle /> Messages</Link></Button>
+          <Button asChild size="sm" variant="outline" className="size-9 px-0"><Link href="/chat" aria-label="Messages" title="Messages"><MessageCircle /></Link></Button>
         ) : mine ? (
           <Button asChild size="sm" variant="purple"><Link href="/cart">Open in cart</Link></Button>
         ) : (
@@ -224,6 +322,15 @@ function LinkCard({
       </div>
     </Card>
   );
+}
+
+/** LinkedIn accounts: opening the card shows only the detail image, full screen with zoom. */
+function DetailImage({ post, src, onClose }: { post: Post; src: string; onClose: () => void }) {
+  useRoom('post', post.id);
+  useEffect(() => {
+    api(`/api/posts/${post.id}`).catch(() => undefined); // records a unique view
+  }, [post.id]);
+  return <ImageViewer src={src} alt={postLabel(post)} onClose={onClose} />;
 }
 
 /** Opening a post records a unique view and joins its room so "viewing" counts are live. */

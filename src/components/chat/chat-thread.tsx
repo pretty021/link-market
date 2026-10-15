@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check as CheckIcon, ChevronDown, Download, ExternalLink, FileText, Lock, Paperclip, Send, Smile, X } from 'lucide-react';
+import { ArrowLeft, Check as CheckIcon, ChevronDown, Copy, Download, ExternalLink, FileText, Link2, Loader2, Lock, Paperclip, Send, ShieldCheck, Smile, X } from 'lucide-react';
+import { AccountThumb } from '@/components/linkedin-card';
 import { Countdown, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useRoom, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
@@ -10,6 +11,7 @@ import { useToast } from '@/components/providers/toast';
 import { Button } from '@/components/ui/button';
 import { Avatar, Badge, Empty, Input, Spinner } from '@/components/ui/primitives';
 import { ACCOUNT_KIND_LABEL } from '@/lib/account-kinds';
+import { MethodIcon, describePayment } from '@/components/payment-method-picker';
 import { api, ApiError } from '@/lib/client/api';
 import { useCountdown } from '@/lib/client/clock';
 import type { Attachment, Check, CheckStatus, Conversation, Message, Post } from '@/lib/client/types';
@@ -20,12 +22,6 @@ type MessagesResponse = { messages: Message[]; nextCursor: string | null; readOn
 
 const typeLabel = { DEAL: 'Deal', ADMIN_CLIENT: 'Support · Client', ADMIN_CUSTOMER: 'Support · Customer' } as const;
 
-const checkTone: Record<CheckStatus, 'amber' | 'mint' | 'red' | 'slate'> = {
-  PENDING: 'amber',
-  CHECKED: 'mint',
-  NOT_CHECKED: 'red',
-  EXPIRED: 'slate',
-};
 const checkLabel: Record<CheckStatus, string> = {
   PENDING: 'Waiting for review',
   CHECKED: 'Checked',
@@ -397,6 +393,24 @@ function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
   );
 }
 
+const statusPill: Record<CheckStatus, string> = {
+  PENDING: 'bg-state-warn/15 text-state-warn',
+  CHECKED: 'bg-state-ok/15 text-state-ok',
+  NOT_CHECKED: 'bg-state-err/15 text-state-err',
+  EXPIRED: 'bg-bg-elev text-ink-lo',
+};
+
+/** "https://example.com/a/confirm236?x" -> "confirm236" (the part people recognise); falls back to the host. */
+function shortLink(url: string) {
+  try {
+    const u = new URL(url);
+    const last = u.pathname.split('/').filter(Boolean).pop();
+    return decodeURIComponent(last ?? u.hostname.replace(/^www\./, ''));
+  } catch {
+    return url;
+  }
+}
+
 function CheckCard({
   message,
   post,
@@ -412,14 +426,19 @@ function CheckCard({
   paused: boolean;
   onReview: (c: Check, a: 'checked' | 'not-checked') => Promise<void>;
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   // While Client Checking the clock is stopped, so the old deadline never hides the review buttons.
   const countdown = useCountdown(paused ? null : expiresAt);
   const done = !paused && countdown.done;
   const check = message.check;
-  const showButtons = canReview && check?.status === 'PENDING';
+  const pending = check?.status === 'PENDING';
+  const showButtons = canReview && pending;
   const name = post?.name?.trim();
   const title = post?.title?.trim();
+  const heading = name || title || 'Account';
+  const link = message.body ?? '';
+  const method = check?.paymentType ? describePayment({ id: check.paymentType, type: check.paymentType, address: check.paymentAddress ?? '' }) : null;
 
   async function click(a: 'checked' | 'not-checked') {
     if (!check || busy) return;
@@ -428,51 +447,130 @@ function CheckCard({
     setBusy(null);
   }
 
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: 'Copied', tone: 'success' });
+    } catch {
+      toast({ title: 'Could not copy.', tone: 'error' });
+    }
+  }
+
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-brand-mint/40 bg-brand-mint/5 p-3.5">
+    <div className="w-full max-w-md rounded-2xl border border-line bg-bg-card p-4 shadow-soft">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand-mint">Checking info</p>
-        {check && <Badge tone={checkTone[check.status]}>{checkLabel[check.status]}</Badge>}
+        <p className="flex items-center gap-2 text-base font-semibold text-ink-mid">
+          <ShieldCheck className="size-5 text-primary" /> Checking info
+        </p>
+        {check && (
+          <span className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium', statusPill[check.status])}>
+            <span className="size-1.5 rounded-full bg-current" />
+            {checkLabel[check.status]}
+          </span>
+        )}
       </div>
-      {(name || title) && (
-        <div className="mt-2">
-          <p className="flex items-center gap-1.5 text-[11px] text-ink-lo">
-            Buying
-            <span className="rounded-full border border-brand-mint/40 bg-brand-mint/10 px-1.5 py-px text-[10px] font-semibold text-brand-mint">
-              {ACCOUNT_KIND_LABEL[post!.kind ?? 'LINKEDIN']}
-            </span>
-          </p>
-          {name && <p className="text-sm font-semibold text-ink-hi">{name}</p>}
-          {title && title !== name && (
-            <p className={cn('break-all text-ink-mid', name ? 'text-xs' : 'text-sm font-semibold text-ink-hi')}>{title}</p>
-          )}
-          <p className="text-xs text-ink-mid">
-            {(post!.kind ?? 'LINKEDIN') === 'LINKEDIN' && `${post!.connects} connects · `}
-            {formatPrice(post!.price)}
-          </p>
+
+      {post && (
+        <div className="mt-3.5 flex items-start gap-3.5">
+          <AccountThumb name={heading} photo={post.image?.url} className="size-14" />
+          <div className="min-w-0 flex-1 leading-snug">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="truncate text-lg font-bold text-ink-hi">{heading}</span>
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{ACCOUNT_KIND_LABEL[post.kind ?? 'LINKEDIN']}</span>
+            </p>
+            {name && title && title !== name && <p className="truncate text-sm text-ink-mid">{title.replace(/^https?:\/\/(www\.)?/i, '')}</p>}
+            <p className="mt-0.5 flex items-center gap-2 text-sm text-ink-mid">
+              {(post.kind ?? 'LINKEDIN') === 'LINKEDIN' && (
+                <>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Link2 className="size-4" /> {post.connects} connects
+                  </span>
+                  <span className="text-ink-lo">•</span>
+                </>
+              )}
+              <span className="font-semibold text-ink-hi">{formatPrice(post.price)}</span>
+            </p>
+          </div>
         </div>
       )}
-      <a
-        href={message.body ?? '#'}
-        target="_blank"
-        rel="noopener noreferrer nofollow"
-        className="mt-2 flex items-center gap-1.5 break-all text-sm text-ink-hi underline decoration-brand-mint/50 underline-offset-2 hover:text-brand-mint"
-      >
-        <ExternalLink className="size-3.5 shrink-0" /> {message.body}
-      </a>
-      {showButtons &&
-        (done ? (
-          <p className="mt-3 text-sm font-semibold text-state-err">Time expired</p>
+
+      <div className={cn('mt-3.5 grid gap-2.5', method && 'grid-cols-2')}>
+        <div className="min-w-0 rounded-xl bg-bg-elev/70 px-3.5 py-2.5">
+          <p className="text-xs text-ink-lo">Checking link</p>
+          <a
+            href={link || '#'}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            title={link}
+            className="mt-1 flex items-center gap-1.5 text-base font-medium text-primary hover:underline"
+          >
+            <span className="truncate">{shortLink(link)}</span>
+            <ExternalLink className="size-4 shrink-0" />
+          </a>
+        </div>
+        {method && (
+          <div className="min-w-0 rounded-xl bg-bg-elev/70 px-3.5 py-2.5">
+            <p className="text-xs text-ink-lo">Paid with</p>
+            <p className="mt-1 flex items-center gap-2">
+              <MethodIcon method={method} className="size-6 text-xs" />
+              <span className="truncate text-base font-semibold text-ink-hi">{method.code}</span>
+              {method.network && (
+                <span className={cn('rounded px-1.5 py-px text-[10px] font-extrabold', method.network.className)}>{method.network.badge}</span>
+              )}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {check?.paymentAddress && (
+        <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-line px-3.5 py-2.5">
+          <span className="shrink-0 text-xs text-ink-lo">Sent to</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-sm text-ink-hi" title={check.paymentAddress}>
+            {check.paymentAddress}
+          </span>
+          <button
+            type="button"
+            onClick={() => void copy(check.paymentAddress!)}
+            className="shrink-0 rounded-lg p-1.5 text-ink-mid transition hover:bg-bg-elev hover:text-ink-hi"
+            aria-label="Copy address"
+            title="Copy"
+          >
+            <Copy className="size-4" />
+          </button>
+        </div>
+      )}
+
+      {showButtons ? (
+        done ? (
+          <p className="mt-3 rounded-xl bg-state-err/10 px-3.5 py-2.5 text-center text-sm font-semibold text-state-err">Time expired</p>
         ) : (
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" className="flex-1" onClick={() => click('checked')} loading={busy === 'checked'} disabled={!!busy}>
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            <Button
+              className="w-full rounded-xl bg-state-ok text-white hover:bg-state-ok/90"
+              onClick={() => click('checked')}
+              loading={busy === 'checked'}
+              disabled={!!busy}
+            >
               <CheckIcon /> Checked
             </Button>
-            <Button size="sm" variant="danger" className="flex-1" onClick={() => click('not-checked')} loading={busy === 'not-checked'} disabled={!!busy}>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl text-state-err hover:bg-state-err/10 hover:text-state-err"
+              onClick={() => click('not-checked')}
+              loading={busy === 'not-checked'}
+              disabled={!!busy}
+            >
               <X /> Not checked
             </Button>
           </div>
-        ))}
+        )
+      ) : (
+        pending && (
+          <p className="mt-3 flex items-center justify-center gap-2.5 rounded-xl bg-bg-elev/70 px-3.5 py-2.5 text-sm text-ink-mid">
+            <Loader2 className="size-4 animate-spin text-primary" /> Waiting for the client to review the link
+          </p>
+        )
+      )}
     </div>
   );
 }

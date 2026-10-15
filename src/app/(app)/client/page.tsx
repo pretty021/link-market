@@ -2,10 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
+import { Eye, FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import { AccountTable, AccountViewToggle, useAccountView } from '@/components/account-view';
 import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
-import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
+import { Chip, LinkedInCard, StatusDot } from '@/components/linkedin-card';
+import { Countdown, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
@@ -77,6 +78,7 @@ export default function ClientDashboard() {
   postsRef.current = posts;
 
   const upsert = (p: Post) => {
+    if (p.clientId !== me.id) return; // only this seller's own links
     const old = postsRef.current?.find((x) => x.id === p.id);
     if (!old || old.status !== p.status) {
       setFlash((f) => new Set(f).add(p.id));
@@ -138,7 +140,7 @@ export default function ClientDashboard() {
               ) : layout === 'table' ? (
                 <AccountTable posts={view.shown!} showConnects flash={flash} onExpired={() => void loadPosts()} />
               ) : (
-              <ul className="grid gap-3 bg-bg-base/70 p-4 sm:grid-cols-2 lg:grid-cols-4">
+              <ul className="grid gap-4 bg-bg-base/70 p-4 sm:grid-cols-2 xl:grid-cols-3">
                   {view.shown!.map((p) => (
                     <LinkItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
                   ))}
@@ -202,45 +204,46 @@ export default function ClientDashboard() {
 }
 
 function LinkItem({ post, flash, onExpired }: { post: Post; flash: boolean; onExpired: () => void }) {
-  const when = new Date(post.updatedAt);
+  const done = post.status === 'COMPLETED';
   return (
-    <li
-      className={cn(
-        'overflow-hidden rounded-xl border border-line bg-bg-card shadow-soft transition-colors duration-700',
-        post.status === 'COMPLETED' && 'border-state-ok/40 bg-state-ok/15',
-        flash && 'ring-2 ring-inset ring-brand-mint/50',
-      )}
-    >
-      <div className={cn('flex items-center justify-between gap-2 px-3 py-2', post.status === 'COMPLETED' ? 'bg-state-ok/20' : 'bg-bg-elev/70')}>
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
-          {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
-        </div>
-        <time dateTime={when.toISOString()} className="shrink-0 text-right text-[10px] leading-tight tabular-nums text-ink-lo">
-          <span className="block font-semibold text-ink-mid">{when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-          <span className="block">{when.toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-        </time>
-      </div>
-      <div className="flex items-start gap-2 p-3">
-        <div className="size-8 shrink-0 overflow-hidden rounded-md bg-bg-elev">
-          {post.image?.url ? (
-            <PostImage image={post.image} title={post.title} />
+    <li>
+      <LinkedInCard
+        post={post}
+        className={cn('h-full transition-colors duration-700', done && 'border-state-ok/40 bg-state-ok/15', flash && 'ring-2 ring-inset ring-brand-mint/50')}
+        headerClassName={done ? 'bg-state-ok/20' : undefined}
+        connects={post.connects}
+        badges={
+          <>
+            <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
+            {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
+            {post.approval && !post.visible && <Badge tone="slate">Hidden</Badge>}
+          </>
+        }
+        chips={
+          <>
+            <Chip icon={<Eye />}>{post.viewCount} views</Chip>
+          </>
+        }
+        person={post.holderName ? { name: post.holderName, image: null, label: done ? 'Bought by' : 'Buyer' } : null}
+        personStatus={
+          done ? (
+            <StatusDot tone="ok">Sold</StatusDot>
+          ) : post.status === 'PROGRESSING' ? (
+            <StatusDot tone="purple">In progress</StatusDot>
+          ) : post.status === 'REQUESTED' ? (
+            <StatusDot tone="amber">Awaiting admin</StatusDot>
+          ) : !post.visible ? (
+            <StatusDot tone="lo">Hidden</StatusDot>
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src="/post-default.jpg" alt="" className="size-full object-cover" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <PostTitle post={post} className="min-w-0" headingClassName="text-sm font-semibold" />
-          <p className="mt-1 text-sm font-bold tabular-nums">{formatPrice(post.price)}</p>
-          <p className="mt-1 text-[11px] text-ink-mid">{post.connects} connects · {post.viewCount} views</p>
-          {post.status === 'PROGRESSING' && (
-            <div className="mt-1">
-              <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
-            </div>
-          )}
-        </div>
-      </div>
+            <StatusDot tone="ok">Available</StatusDot>
+          )
+        }
+        action={
+          post.status === 'PROGRESSING' ? (
+            <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
+          ) : undefined
+        }
+      />
     </li>
   );
 }

@@ -6,6 +6,7 @@ import { PageTitle } from '@/components/app-shell';
 import { ImageUpload } from '@/components/post-bits';
 import { useMe } from '@/components/providers/session';
 import { useToast } from '@/components/providers/toast';
+import { PaymentTypeSelect } from '@/components/payment-method-picker';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, Field, Input } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
@@ -137,13 +138,10 @@ export default function ProfilePage() {
                   <p className="text-xs text-ink-lo">None yet. You can add more than one.</p>
                 ) : (
                   addresses.map((row, i) => (
-                    <div key={i} className="grid grid-cols-[minmax(0,8rem)_1fr_auto] gap-2">
-                      <Input
-                        aria-label="Payment type"
-                        placeholder="Type"
-                        maxLength={40}
+                    <div key={i} className="grid grid-cols-[minmax(0,9.5rem)_1fr_auto] gap-2">
+                      <PaymentTypeSelect
                         value={row.type}
-                        onChange={(e) => setAddresses((rows) => rows.map((r, n) => (n === i ? { ...r, type: e.target.value } : r)))}
+                        onChange={(type) => setAddresses((rows) => rows.map((r, n) => (n === i ? { ...r, type } : r)))}
                       />
                       <Input
                         aria-label="Payment address"

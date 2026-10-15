@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 export const Dialog = D.Root;
 export const DialogTrigger = D.Trigger;
 export const DialogClose = D.Close;
+export const DialogTitle = D.Title;
+export const DialogDescription = D.Description;
 
 export function DialogContent({
   title,
@@ -15,7 +17,10 @@ export function DialogContent({
   children,
   className,
   onInteractOutside,
+  bare,
 }: {
+  /** bare: no built-in title row or close button; the children draw their own (using DialogTitle / DialogClose). */
+  bare?: boolean;
   title: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
@@ -32,18 +37,22 @@ export function DialogContent({
           className,
         )}
       >
-        <div className="mb-4 pr-8">
-          <D.Title className="text-lg font-semibold text-ink-hi">{title}</D.Title>
-          {description ? (
-            <D.Description className="mt-1 text-sm text-ink-lo">{description}</D.Description>
-          ) : (
-            <D.Description className="sr-only">{typeof title === 'string' ? title : 'Dialog'}</D.Description>
-          )}
-        </div>
+        {!bare && (
+          <div className="mb-4 pr-8">
+            <D.Title className="text-lg font-semibold text-ink-hi">{title}</D.Title>
+            {description ? (
+              <D.Description className="mt-1 text-sm text-ink-lo">{description}</D.Description>
+            ) : (
+              <D.Description className="sr-only">{typeof title === 'string' ? title : 'Dialog'}</D.Description>
+            )}
+          </div>
+        )}
         {children}
-        <D.Close className="absolute right-4 top-4 rounded-lg p-1 text-ink-lo hover:bg-bg-elev hover:text-ink-hi" aria-label="Close">
-          <X className="size-4" />
-        </D.Close>
+        {!bare && (
+          <D.Close className="absolute right-4 top-4 rounded-lg p-1 text-ink-lo hover:bg-bg-elev hover:text-ink-hi" aria-label="Close">
+            <X className="size-4" />
+          </D.Close>
+        )}
       </D.Content>
     </D.Portal>
   );

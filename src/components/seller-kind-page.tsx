@@ -2,8 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { FilePlus2, Plus, Trash2 } from 'lucide-react';
+import { Eye, FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { PageTitle } from '@/components/app-shell';
+import { Chip, LinkedInCard, StatusDot, usesAccountCard } from '@/components/linkedin-card';
 import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
 import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
@@ -58,7 +59,7 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
   });
 
   const upsert = (p: Post) => {
-    if ((p.kind ?? 'LINKEDIN') !== kind) return;
+    if (p.clientId !== me.id || (p.kind ?? 'LINKEDIN') !== kind) return; // only this seller's own links
     setPosts((prev) => {
       if (!prev) return prev;
       const rest = prev.filter((x) => x.id !== p.id);
@@ -109,10 +110,14 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
             ) : layout === 'table' ? (
               <AccountTable posts={view.shown!} showConnects={false} flash={flash} onExpired={() => void loadPosts()} />
             ) : (
-              <ul className="grid gap-3 bg-bg-base/70 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                {view.shown!.map((p) => (
-                  <AccountItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
-                ))}
+              <ul className={cn('grid bg-bg-base/70 p-4', usesAccountCard(kind) ? 'gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'gap-3 sm:grid-cols-2 lg:grid-cols-4')}>
+                {view.shown!.map((p) =>
+                  usesAccountCard(kind) ? (
+                    <AccountCardItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
+                  ) : (
+                    <AccountItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
+                  ),
+                )}
               </ul>
             )}
           </>
@@ -120,6 +125,47 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
       </Card>
       <SimpleRequestDialog kind={kind} open={requestOpen} onClose={() => setRequestOpen(false)} onCreated={(created) => created.forEach(upsert)} />
     </>
+  );
+}
+
+/** GV / Gmail: the same account card as the seller's LinkedIn links. */
+function AccountCardItem({ post, flash, onExpired }: { post: Post; flash: boolean; onExpired: () => void }) {
+  const done = post.status === 'COMPLETED';
+  return (
+    <li>
+      <LinkedInCard
+        post={post}
+        className={cn('h-full transition-colors duration-700', done && 'border-state-ok/40 bg-state-ok/15', flash && 'ring-2 ring-inset ring-brand-mint/50')}
+        headerClassName={done ? 'bg-state-ok/20' : undefined}
+        badges={
+          <>
+            <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
+            {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
+            {post.approval && !post.visible && <Badge tone="slate">Hidden</Badge>}
+          </>
+        }
+        chips={<Chip icon={<Eye />}>{post.viewCount} views</Chip>}
+        person={post.holderName ? { name: post.holderName, image: null, label: done ? 'Bought by' : 'Buyer' } : null}
+        personStatus={
+          done ? (
+            <StatusDot tone="ok">Sold</StatusDot>
+          ) : post.status === 'PROGRESSING' ? (
+            <StatusDot tone="purple">In progress</StatusDot>
+          ) : post.status === 'REQUESTED' ? (
+            <StatusDot tone="amber">Awaiting admin</StatusDot>
+          ) : !post.visible ? (
+            <StatusDot tone="lo">Hidden</StatusDot>
+          ) : (
+            <StatusDot tone="ok">Available</StatusDot>
+          )
+        }
+        action={
+          post.status === 'PROGRESSING' ? (
+            <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
+          ) : undefined
+        }
+      />
+    </li>
   );
 }
 

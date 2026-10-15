@@ -3,7 +3,7 @@ import { DB_NOW, prisma, type Tx } from '@/lib/db';
 import type { AdminActor, UserActor } from '@/lib/actor';
 import { ACCOUNT_KIND_LABEL, type AccountKind } from '@/lib/account-kinds';
 import { badRequest, conflict, forbidden, notFound } from '@/lib/errors';
-import { rooms, viewerCount } from '@/lib/realtime';
+import { onlineIds, rooms, viewerCount } from '@/lib/realtime';
 import { deleteStoredImage } from '@/lib/storage';
 import type { ImageInfo } from '@/lib/validation';
 import { Outbox } from '../outbox';
@@ -37,6 +37,7 @@ export function toPostDTO(p: PostRow, opts: { staff: boolean }) {
     visible: p.visible,
     status: p.status,
     image: p.image as ImageInfo | null,
+    detailImage: (p.detailImage as ImageInfo | null) ?? null,
     connects: p.connects,
     price: p.price,
     approval: p.approval,
@@ -44,7 +45,8 @@ export function toPostDTO(p: PostRow, opts: { staff: boolean }) {
     viewers: viewerCount(p.id),
     clientId: p.clientId,
     clientName: p.client.name,
-    clientImage: opts.staff ? ((p.client.image as ImageInfo | null) ?? null) : null,
+    clientImage: (p.client.image as ImageInfo | null) ?? null,
+    clientOnline: onlineIds().has(p.clientId),
     holderId: p.holderId,
     holderName: opts.staff ? (p.holder?.name ?? null) : null,
     progressingAt: p.progressingAt,
@@ -333,7 +335,7 @@ export async function acceptPost(admin: AdminActor, postId: string, note?: strin
 
 export async function updatePostByAdmin(
   postId: string,
-  data: { image?: ImageInfo | null; connects?: number; price?: number; name?: string | null; title?: string },
+  data: { image?: ImageInfo | null; detailImage?: ImageInfo | null; connects?: number; price?: number; name?: string | null; title?: string },
 ) {
   const before = await prisma.post.findUnique({ where: { id: postId } });
   if (!before) throw notFound('Link');
@@ -341,6 +343,7 @@ export async function updatePostByAdmin(
     where: { id: postId },
     data: {
       ...(data.image !== undefined ? { image: data.image ?? Prisma.DbNull } : {}),
+      ...(data.detailImage !== undefined ? { detailImage: data.detailImage ?? Prisma.DbNull } : {}),
       ...(data.connects !== undefined ? { connects: data.connects } : {}),
       ...(data.price !== undefined ? { price: data.price } : {}),
       ...(data.name !== undefined ? { name: data.name } : {}),
@@ -351,6 +354,10 @@ export async function updatePostByAdmin(
   const oldImage = before.image as ImageInfo | null;
   if (data.image !== undefined && oldImage?.key && oldImage.key !== data.image?.key) {
     await deleteStoredImage(oldImage.key).catch(() => undefined);
+  }
+  const oldDetail = before.detailImage as ImageInfo | null;
+  if (data.detailImage !== undefined && oldDetail?.key && oldDetail.key !== data.detailImage?.key) {
+    await deleteStoredImage(oldDetail.key).catch(() => undefined);
   }
   const serverNow = await dbNow();
   const out = new Outbox();

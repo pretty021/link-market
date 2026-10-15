@@ -171,6 +171,7 @@ model Post {
   visible  Boolean    @default(true)      // Admin can hide an accepted post from Customers (its Client still sees it)
   status   PostStatus @default(REQUESTED) // REQUESTED -> PUBLISHED -> PROGRESSING -> COMPLETED
   image    Json?                          // uploaded image info: { url, key, mimeType, size, width, height }; set by Admin
+  detailImage Json?                       // optional full-size picture (LinkedIn); Customers open it in a zoomable viewer
   connects Int        @default(0)
   price    Float?                         // e.g. 35.01
 
@@ -255,6 +256,10 @@ model CheckSubmission {
   customerId String
   customer   User        @relation(fields: [customerId], references: [id])
   url        String
+  // Payment method the Customer chose, copied from the Client's PaymentAddress at submit time
+  // (so later edits to the Client's addresses don't change history).
+  paymentType    String?
+  paymentAddress String?
   status     CheckStatus @default(PENDING)
   reviewedAt DateTime?
   createdAt  DateTime    @default(now())

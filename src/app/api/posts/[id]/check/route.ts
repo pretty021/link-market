@@ -6,6 +6,6 @@ import { submitCheck } from '@/server/services/checks';
 export const POST = route(async (req, { params }) => {
   const customer = await requireCustomer(req);
   rateLimit(`check:${customer.id}`, 10, 60_000);
-  const { url } = await body(req, checkUrlSchema);
-  return submitCheck(customer, params.id, url);
+  const { url, paymentId } = await body(req, checkUrlSchema);
+  return submitCheck(customer, params.id, url, paymentId);
 });

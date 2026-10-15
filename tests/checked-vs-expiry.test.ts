@@ -2,8 +2,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { HttpError } from '@/lib/errors';
 import { confirmPost, expireDue } from '@/server/services/posts';
-import { markChecked, submitCheck } from '@/server/services/checks';
-import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn, sleep } from './helpers';
+import { markChecked } from '@/server/services/checks';
+import { addToCartDirect, makeClient, makeCustomer, makePublishedPost, resetDb, setExpiresIn, sleep, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -14,7 +14,7 @@ async function progressingWithPendingCheck() {
   const post = await makePublishedPost(client.id);
   await addToCartDirect(customer.id, post.id);
   await confirmPost(customer, post.id);
-  const { check } = await submitCheck(customer, post.id, 'https://example.com/proof');
+  const { check } = await submitPaidCheck(customer, post.id, 'https://example.com/proof');
   return { client, customer, post, check };
 }
 

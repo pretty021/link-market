@@ -10,17 +10,24 @@ import { cn, formatPrice } from '@/lib/utils';
 
 export type AccountView = 'list' | 'table';
 
-const STORAGE_KEY = 'client-account-view';
-
-export function useAccountView(): [AccountView, (next: AccountView) => void] {
+/** List / Table choice, remembered per browser (separately for Clients and Customers). */
+export function useAccountView(storageKey = 'client-account-view'): [AccountView, (next: AccountView) => void] {
   const [view, setView] = useState<AccountView>('list');
   useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved === 'list' || saved === 'table') setView(saved);
-  }, []);
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved === 'list' || saved === 'table') setView(saved);
+    } catch {
+      // Storage blocked: start with the list.
+    }
+  }, [storageKey]);
   function update(next: AccountView) {
     setView(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
+    try {
+      window.localStorage.setItem(storageKey, next);
+    } catch {
+      // Remembering the choice is only a convenience.
+    }
   }
   return [view, update];
 }
