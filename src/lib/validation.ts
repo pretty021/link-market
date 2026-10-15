@@ -132,6 +132,20 @@ const simpleRequest = z.object({
   price: requestPrice,
 });
 
+/** Admin adds an account for a seller; it is accepted and live straight away. */
+export const adminCreatePostSchema = z
+  .object({
+    clientId: z.string().trim().min(1, 'Choose a seller.'),
+    kind: z.enum(['LINKEDIN', 'GV', 'GMAIL', 'WHATSAPP', 'TELEGRAM']),
+    title: requestTitle,
+    name: z.string().trim().max(120, 'Name must be 120 characters or less.').optional(),
+    connects: z.coerce.number().int().min(0, 'Connects must be 0 or more.').max(1_000_000, 'Connects is too large.').optional(),
+    price: requestPrice,
+    image: imageSchema.nullish(),
+    detailImage: imageSchema.nullish(),
+  })
+  .refine((v) => v.kind !== 'LINKEDIN' || !!v.name, { message: 'Name is required.', path: ['name'] });
+
 export const clientPostsSchema = z.object({
   posts: z.array(z.union([simpleRequest, linkedInRequest])).min(1, 'Add at least one link.').max(50),
 });

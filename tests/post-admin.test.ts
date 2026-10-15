@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db';
 import {
   addToCart,
   confirmPost,
+  createPostByAdmin,
+  deletePostByAdmin,
   deleteRequestedPost,
   getPostForCustomer,
   listClientPosts,
@@ -11,7 +13,7 @@ import {
   updatePostByAdmin,
 } from '@/server/services/posts';
 import { adminPostUpdateSchema } from '@/lib/validation';
-import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb } from './helpers';
+import { addToCartDirect, makeAdmin, makeClient, makeCustomer, makePublishedPost, resetDb, submitPaidCheck } from './helpers';
 
 beforeEach(resetDb);
 afterAll(() => prisma.$disconnect());
@@ -139,3 +141,62 @@ describe('detail image', () => {
     expect((await updatePostByAdmin(post.id, adminPostUpdateSchema.parse({ detailImage: null }))).post.detailImage).toBeNull();
   });
 });
+
+describe('admin adds an account', () => {
+  it('is accepted and live at once, and the seller is told', async () => {
+    const admin = await makeAdmin();
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const { post } = await createPostByAdmin(admin, { clientId: client.id, kind: 'LINKEDIN', title: 'https://linkedin.com/in/new', name: 'New One', connects: 120, price: 25 });
+    expect(post).toMatchObject({ status: 'PUBLISHED', approval: true, visible: true, name: 'New One', clientId: client.id });
+    expect(await prisma.postApproval.count({ where: { postId: post.id, adminId: admin.id } })).toBe(1);
+    expect((await listFeed(customer)).posts.some((p) => p.id === post.id)).toBe(true);
+    expect(await prisma.notification.count({ where: { userId: client.id, type: 'POST_ACCEPTED', postId: post.id } })).toBe(1);
+  });
+
+  it("refuses a seller who doesn't sell that account type", async () => {
+    const admin = await makeAdmin();
+    const client = await makeClient(); // LinkedIn only
+    await expect(createPostByAdmin(admin, { clientId: client.id, kind: 'GMAIL', title: 'a@gmail.com', price: 3 })).rejects.toMatchObject({ code: 'SELLER_KIND' });
+  });
+});
+
+describe('admin edits and deletes accounts', () => {
+  it('deletes a published account and takes it out of carts', async () => {
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id);
+    await addToCartDirect(customer.id, post.id);
+    await deletePostByAdmin(post.id);
+    expect(await prisma.post.count({ where: { id: post.id } })).toBe(0);
+    expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(0);
+    expect(await prisma.notification.count({ where: { userId: client.id, type: 'POST_DELETED' } })).toBe(1);
+  });
+
+  it('deletes a completed account but keeps its deal chat', async () => {
+    const { markChecked } = await import('@/server/services/checks');
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id);
+    await addToCartDirect(customer.id, post.id);
+    await confirmPost(customer, post.id);
+    const { check, conversationId } = await submitPaidCheck(customer, post.id, 'https://example.com/proof');
+    await markChecked(client, check.id);
+    await deletePostByAdmin(post.id);
+    expect(await prisma.post.count({ where: { id: post.id } })).toBe(0);
+    const conv = await prisma.conversation.findUniqueOrThrow({ where: { id: conversationId } });
+    expect(conv.postId).toBeNull();
+    expect(await prisma.message.count({ where: { conversationId } })).toBeGreaterThan(0);
+  });
+
+  it('an account a buyer is holding can be neither deleted nor edited', async () => {
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id);
+    await addToCartDirect(customer.id, post.id);
+    await confirmPost(customer, post.id);
+    await expect(deletePostByAdmin(post.id)).rejects.toMatchObject({ code: 'IN_PROGRESS' });
+    await expect(updatePostByAdmin(post.id, adminPostUpdateSchema.parse({ price: 1 }))).rejects.toMatchObject({ code: 'IN_PROGRESS' });
+  });
+});
+

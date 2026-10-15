@@ -4,7 +4,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Check, Clock3, Link2 } from 'lucide-react';
 import { Avatar } from '@/components/ui/primitives';
 import type { ImageInfo, Post } from '@/lib/client/types';
-import { kindLogoSrc, type AccountKind } from '@/lib/account-kinds';
+import { DEFAULT_ACCOUNT_IMAGE, kindLogoSrc, type AccountKind } from '@/lib/account-kinds';
 import { postHref } from '@/components/post-bits';
 import { cn, formatPrice } from '@/lib/utils';
 
@@ -102,7 +102,7 @@ export function AccountCover({ name, photo, connects, kind }: { name: string; ph
       </span>
       {connects !== undefined && (
         <span
-          className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold shadow-soft [&_svg]:size-4"
+          className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums shadow-soft [&_svg]:size-3"
           style={{ background: 'var(--pill-bg)', color: 'var(--pill-fg)' }}
         >
           <Link2 /> {connects} connects
@@ -112,14 +112,9 @@ export function AccountCover({ name, photo, connects, kind }: { name: string; ph
         className="absolute left-1/2 top-[58%] flex aspect-square h-[62%] -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border shadow-lift"
         style={{ background: 'var(--circle-bg)', borderColor: 'var(--circle-border)' }}
       >
-        {photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt="" className="size-full object-cover" />
-        ) : (
-          <span className="text-4xl font-extrabold tracking-tight" style={{ color: 'var(--acc)' }}>
-            {initials}
-          </span>
-        )}
+        {/* The account photo, or the person placeholder when there is none. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={photo ?? DEFAULT_ACCOUNT_IMAGE} alt="" className="size-full object-cover" />
       </span>
     </div>
   );
@@ -132,14 +127,8 @@ export function AccountThumb({ name, photo, className }: { name: string; photo?:
       className={cn('acc-cover relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl', className)}
       data-tint={coverTint(name)}
     >
-      {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo} alt="" className="size-full object-cover" />
-      ) : (
-        <span className="text-xl font-extrabold" style={{ color: 'var(--acc)' }}>
-          {accountInitials(name)}
-        </span>
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={photo ?? DEFAULT_ACCOUNT_IMAGE} alt="" className="size-full object-cover" />
     </span>
   );
 }

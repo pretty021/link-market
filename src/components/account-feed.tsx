@@ -58,6 +58,7 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
     if ((post.kind ?? 'LINKEDIN') === kind) toast({ title: 'New link', body: post.title, tone: 'success' });
   });
   useSocketEvent<{ post: Post }>('post:updated', ({ post }) => upsert(post));
+  useSocketEvent<{ postId: string }>('post:deleted', ({ postId }) => setPosts((prev) => prev?.filter((p) => p.id !== postId) ?? prev));
   useSocketEvent<{ postId: string; count: number }>('post:viewers', ({ postId, count }) =>
     setPosts((prev) => prev?.map((p) => (p.id === postId ? { ...p, viewers: count } : p)) ?? prev),
   );
@@ -230,16 +231,17 @@ function LinkCard({ post, mine, inCart, busy, onOpen, onToggleCart, onExpired }:
       personStatus={post.clientOnline ? <StatusDot tone="ok">Available</StatusDot> : <StatusDot tone="lo">Away</StatusDot>}
       action={
         done ? (
-          <Button asChild variant="outline" className="size-11 rounded-xl px-0"><Link href="/chat" aria-label="Messages" title="Messages"><MessageCircle /></Link></Button>
+          <Button asChild size="sm" variant="outline" className="size-9 rounded-lg px-0"><Link href="/chat" aria-label="Messages" title="Messages"><MessageCircle /></Link></Button>
         ) : mine ? (
-          <Button asChild variant="purple" className="rounded-xl"><Link href="/cart">Open in cart</Link></Button>
+          <Button asChild size="sm" variant="purple" className="rounded-lg"><Link href="/cart">Open in cart</Link></Button>
         ) : (
           <Button
+            size="sm"
             variant={inCart ? 'outline' : 'primary'}
             loading={busy}
             disabled={!inCart && post.status !== 'PUBLISHED'}
             onClick={onToggleCart}
-            className="rounded-xl px-5"
+            className="rounded-lg px-3"
           >
             <ShoppingCart /> {inCart ? 'Remove' : post.status === 'PROGRESSING' ? 'In progress' : 'Add'}
           </Button>

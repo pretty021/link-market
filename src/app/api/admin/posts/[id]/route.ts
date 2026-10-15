@@ -1,6 +1,6 @@
 import { body, requireAdmin, route } from '@/lib/http';
 import { adminPostUpdateSchema } from '@/lib/validation';
-import { deleteRequestedPost, updatePostByAdmin } from '@/server/services/posts';
+import { deletePostByAdmin, updatePostByAdmin } from '@/server/services/posts';
 
 export const PATCH = route(async (req, { params }) => {
   await requireAdmin(req);
@@ -8,8 +8,8 @@ export const PATCH = route(async (req, { params }) => {
   return updatePostByAdmin(params.id, input);
 });
 
-/** Only post requests (not yet accepted) can be deleted. */
+/** Requests, published and completed accounts can be deleted (not one a buyer is holding). */
 export const DELETE = route(async (req, { params }) => {
   await requireAdmin(req);
-  return deleteRequestedPost(params.id);
+  return deletePostByAdmin(params.id);
 });

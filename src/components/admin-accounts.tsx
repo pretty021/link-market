@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { PageTitle } from '@/components/app-shell';
+import { AdminAddAccount, AdminEditAccount } from '@/components/admin-add-account';
 import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
 import { Countdown, PostTitle, StatusBadge } from '@/components/post-bits';
 import { useToast } from '@/components/providers/toast';
 import { useOnReconnect, useSocketEvent } from '@/components/providers/realtime';
+import { Pencil, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Badge, Card, Empty, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import type { Post } from '@/lib/client/types';
@@ -55,10 +58,31 @@ export function AdminAccounts({
   );
 
   const shown = view.shown;
+  const toast = useToast();
+  const [editing, setEditing] = useState<Post | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  // Published and completed accounts can be edited or deleted; not one a buyer is holding.
+  const manageable = (p: Post) => p.status === 'PUBLISHED' || p.status === 'COMPLETED';
+
+  async function remove(p: Post) {
+    const label = p.name?.trim() || p.title;
+    const warn = p.status === 'COMPLETED' ? ' It is already sold; the deal chat stays.' : ' It disappears from every feed and cart.';
+    if (!window.confirm(`Delete "${label}"?${warn} This cannot be undone.`)) return;
+    setDeleting(p.id);
+    try {
+      await api(`/api/admin/posts/${p.id}`, { method: 'DELETE' });
+      setPosts((prev) => prev?.filter((x) => x.id !== p.id) ?? prev);
+      toast({ title: 'Account deleted', tone: 'success' });
+    } catch (e) {
+      toast({ title: e instanceof ApiError ? e.message : 'Could not delete.', tone: 'error' });
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
     <>
-      <PageTitle title={title} subtitle={subtitle} />
+      <PageTitle title={title} subtitle={subtitle} action={<AdminAddAccount kind={kind} onCreated={upsert} />} />
       <ListToolbar
         controls={list}
         counts={view.counts}
@@ -84,6 +108,7 @@ export function AdminAccounts({
                 <th className="px-4 py-3 font-medium">Countdown</th>
                 <th className="px-4 py-3 text-right font-medium">Price</th>
                 <th className="px-4 py-3 text-right font-medium">Views</th>
+                <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/40">
@@ -123,12 +148,35 @@ export function AdminAccounts({
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">{formatPrice(p.price)}</td>
                   <td className="px-4 py-3 text-right text-ink-mid">{p.viewCount} <span className="text-ink-lo">({p.viewers} now)</span></td>
+                  <td className="px-4 py-3">
+                    {manageable(p) ? (
+                      <div className="flex justify-end gap-1.5">
+                        <Button size="icon" variant="outline" className="size-8" onClick={() => setEditing(p)} aria-label="Edit account" title="Edit">
+                          <Pencil />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="size-8 text-state-err hover:bg-state-err/10 hover:text-state-err"
+                          onClick={() => void remove(p)}
+                          loading={deleting === p.id}
+                          aria-label="Delete account"
+                          title="Delete"
+                        >
+                          {deleting !== p.id && <Trash2 />}
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="block text-right text-ink-lo">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </Card>
+      <AdminEditAccount post={editing} onSaved={upsert} onClose={() => setEditing(null)} />
     </>
   );
 }

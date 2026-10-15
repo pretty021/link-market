@@ -339,6 +339,7 @@ export async function updatePostByAdmin(
 ) {
   const before = await prisma.post.findUnique({ where: { id: postId } });
   if (!before) throw notFound('Link');
+  if (before.status === 'PROGRESSING') throw conflict('IN_PROGRESS', 'A buyer is holding this account. Edit it when the deal ends.');
   const post = await prisma.post.update({
     where: { id: postId },
     data: {
@@ -430,6 +431,47 @@ export async function deleteRequestedPost(postId: string) {
   return { ok: true };
 }
 
+/**
+ * Admin deletes a request, a published account or a completed one. An account that is in progress
+ * (a buyer is holding it) can't be deleted mid-deal. Deal chats stay; carts, views and checks go with it.
+ */
+export async function deletePostByAdmin(postId: string) {
+  const existing = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true, clientId: true, title: true, name: true, status: true, image: true, detailImage: true },
+  });
+  if (!existing) throw notFound('Link');
+  if (existing.status === 'PROGRESSING') throw conflict('IN_PROGRESS', 'A buyer is holding this account. Try again when the deal ends.');
+
+  const out = new Outbox();
+  const carted = await prisma.$transaction(async (tx) => {
+    const inCarts = await tx.cartItem.findMany({ where: { postId }, select: { customerId: true } });
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      DELETE FROM "Post" WHERE id = ${postId} AND status <> 'PROGRESSING'
+      RETURNING id`;
+    if (rows.length === 0) throw conflict('IN_PROGRESS', 'A buyer is holding this account. Try again when the deal ends.');
+    const label = existing.name?.trim() || existing.title;
+    const request = existing.status === 'REQUESTED';
+    await notify(tx, out, { userId: existing.clientId }, {
+      type: 'POST_DELETED',
+      title: request ? 'Link request deleted' : 'Account deleted',
+      body: `"${label}" was removed by an admin.`,
+    });
+    return inCarts.map((c) => c.customerId);
+  });
+  for (const img of [existing.image, existing.detailImage] as (ImageInfo | null)[]) {
+    if (img?.key) await deleteStoredImage(img.key).catch(() => undefined);
+  }
+  out.push([rooms.admins, rooms.user(existing.clientId), rooms.customers], 'post:deleted', { postId });
+  out.flush();
+  for (const customerId of carted) {
+    const out2 = new Outbox();
+    out2.push(rooms.user(customerId), 'cart:updated', await cartSnapshot(customerId));
+    out2.flush();
+  }
+  return { ok: true };
+}
+
 export async function listAdminPosts(status?: PostStatus, kind?: AccountKind) {
   await expireDue();
   const posts = await prisma.post.findMany({
@@ -441,6 +483,62 @@ export async function listAdminPosts(status?: PostStatus, kind?: AccountKind) {
 }
 
 // ───────────────────────── Client ─────────────────────────
+
+/**
+ * Admin adds an account for a seller. It skips the request step: the post is created accepted and
+ * PUBLISHED, with an approval record, and goes live in every customer feed at once.
+ */
+export async function createPostByAdmin(
+  admin: AdminActor,
+  input: {
+    clientId: string;
+    kind: AccountKind;
+    title: string;
+    name?: string;
+    connects?: number;
+    price: number;
+    image?: ImageInfo | null;
+    detailImage?: ImageInfo | null;
+  },
+) {
+  const seller = await prisma.user.findUnique({ where: { id: input.clientId }, select: { role: true, name: true, sellerKinds: true, deletedAt: true, isBlocked: true } });
+  if (!seller || seller.role !== 'CLIENT' || seller.deletedAt) throw notFound('Seller');
+  if (seller.isBlocked) throw conflict('SELLER_BLOCKED', 'This seller is blocked.');
+  if (!seller.sellerKinds.includes(input.kind)) {
+    throw badRequest('SELLER_KIND', `${seller.name} doesn't sell ${ACCOUNT_KIND_LABEL[input.kind]} accounts. Turn it on in their profile first.`);
+  }
+  const linkedIn = input.kind === 'LINKEDIN';
+  const out = new Outbox();
+  const result = await prisma.$transaction(async (tx) => {
+    const created = await tx.post.create({
+      data: {
+        clientId: input.clientId,
+        kind: input.kind,
+        title: input.title,
+        name: linkedIn ? (input.name ?? null) : null,
+        connects: linkedIn ? (input.connects ?? 0) : 0,
+        price: input.price,
+        image: input.image ?? Prisma.DbNull,
+        detailImage: linkedIn && input.detailImage ? input.detailImage : Prisma.DbNull,
+        approval: true,
+        status: 'PUBLISHED',
+      },
+    });
+    await tx.postApproval.create({ data: { postId: created.id, adminId: admin.id, note: 'Added by an admin' } });
+    const post = await loadPost(tx, created.id);
+    await notify(tx, out, { userId: post.clientId }, {
+      type: 'POST_ACCEPTED',
+      title: 'Account added',
+      body: `An admin added "${post.name || post.title}" to your ${ACCOUNT_KIND_LABEL[post.kind]} accounts. It is live for customers.`,
+      postId: post.id,
+    });
+    const serverNow = await dbNow(tx);
+    pushPost(out, post, serverNow, 'post:published');
+    return { post: toPostDTO(post, { staff: true }), serverNow };
+  });
+  out.flush();
+  return result;
+}
 
 export async function createClientPosts(
   client: UserActor,

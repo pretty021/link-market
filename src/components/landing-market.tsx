@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowRight, BadgeCheck, Briefcase, LayoutGrid, Mail, MessageCircle, Phone, Send, ShoppingCart, type LucideIcon } from 'lucide-react';
 import { accountInitials, coverTint } from '@/components/linkedin-card';
-import type { AccountKind } from '@/lib/account-kinds';
+import { DEFAULT_ACCOUNT_IMAGE, type AccountKind } from '@/lib/account-kinds';
 import { cn, formatPrice } from '@/lib/utils';
 
 export type LandingListing = {
@@ -70,14 +70,8 @@ function ListingCard({ l }: { l: LandingListing }) {
           className="absolute left-1/2 top-[55%] flex aspect-square h-[52%] -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border shadow-lift"
           style={{ background: 'var(--circle-bg)', borderColor: 'var(--circle-border)' }}
         >
-          {l.photo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={l.photo} alt="" className="size-full object-cover" />
-          ) : (
-            <span className="font-display text-xl font-bold" style={{ color: 'var(--acc)' }}>
-              {initials}
-            </span>
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={l.photo ?? DEFAULT_ACCOUNT_IMAGE} alt="" className="size-full object-cover" />
         </span>
       </div>
       <div className="flex flex-1 flex-col px-2 pb-1.5 pt-3">
