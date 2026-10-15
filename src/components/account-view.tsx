@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { List, Table2 } from 'lucide-react';
 import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
 import { Badge } from '@/components/ui/primitives';
-import { coverClass, coverSrc } from '@/lib/account-kinds';
+import { DEFAULT_ACCOUNT_IMAGE, coverClass, coverSrc } from '@/lib/account-kinds';
 import type { Post } from '@/lib/client/types';
 import { cn, formatPrice } from '@/lib/utils';
 
@@ -92,7 +92,7 @@ export function AccountTable({
                         <PostImage image={post.image} title={post.title} />
                       ) : linkedIn ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src="/post-default.jpg" alt={post.title} className="size-full object-cover" />
+                        <img src={DEFAULT_ACCOUNT_IMAGE} alt={post.title} className="size-full object-cover" />
                       ) : (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={coverSrc(null, post.kind)} alt={post.title} className={coverClass(null, post.kind, 'p-0.5')} />

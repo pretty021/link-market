@@ -142,3 +142,8 @@
   --circle-bg: var(--circle-dark);
   --circle-border: rgb(255 255 255 / 0.14);
 }
+
+/* Account photo placeholder: the same picture in dark colours on the dark theme. */
+[data-theme='dark'] img[src='/default-account.svg'] {
+  content: url('/default-account-dark.svg');
+}

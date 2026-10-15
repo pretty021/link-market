@@ -29,9 +29,12 @@ export function isKindLogoSrc(src?: string | null) {
   return src === '/gv.png' || src === '/gmail.png' || src === '/whatsapp.png' || src === '/telegram.png';
 }
 
+/** Plain person placeholder for an account without a photo (globals.css swaps in the dark version). */
+export const DEFAULT_ACCOUNT_IMAGE = '/default-account.svg';
+
 /** Picture shown when an account has no upload. Logos stay contained; other covers fill the frame. */
 export function coverSrc(imageUrl: string | null | undefined, kind?: string | null) {
-  return imageUrl || kindLogoSrc(kind) || '/post-default.jpg';
+  return imageUrl || kindLogoSrc(kind) || DEFAULT_ACCOUNT_IMAGE;
 }
 
 export function coverIsLogo(imageUrl: string | null | undefined, kind?: string | null) {

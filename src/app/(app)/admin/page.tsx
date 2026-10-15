@@ -12,7 +12,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Avatar, Card, CardHeader, Empty, Field, Input, Label, Spinner } from '@/components/ui/primitives';
 import { api, ApiError } from '@/lib/client/api';
 import type { ImageInfo, Post } from '@/lib/client/types';
-import { ACCOUNT_KIND_LABEL, coverClass, coverSrc, kindLogoSrc } from '@/lib/account-kinds';
+import { ACCOUNT_KIND_LABEL, DEFAULT_ACCOUNT_IMAGE, coverClass, coverSrc, kindLogoSrc } from '@/lib/account-kinds';
 import { formatPrice } from '@/lib/utils';
 
 type Stats = { clientsOnline: number; clientsTotal: number; customersOnline: number; customersTotal: number; requested: number; progressing: number };
@@ -541,7 +541,7 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
       </div>
       <div className="flex gap-4 px-4 py-4">
         <div className="shrink-0 pt-6">
-          <ImageUpload value={image} onChange={setImage} placeholderSrc={kindLogoSrc(post.kind) ?? '/post-default.jpg'} imageOnly />
+          <ImageUpload value={image} onChange={setImage} placeholderSrc={kindLogoSrc(post.kind) ?? DEFAULT_ACCOUNT_IMAGE} imageOnly />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div>
