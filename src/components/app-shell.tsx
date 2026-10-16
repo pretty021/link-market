@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
-import { LogOut, LifeBuoy, ShoppingCart, User } from 'lucide-react';
+import { LogOut, LifeBuoy, ShoppingCart, SunMoon, User } from 'lucide-react';
 import { ACCOUNT_KINDS, ACCOUNT_KIND_LABEL, kindHref } from '@/lib/account-kinds';
 import { api, ApiError } from '@/lib/client/api';
 import { homePath } from '@/lib/home';
@@ -158,6 +158,15 @@ function UserMenu() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     window.location.href = '/login';
   }
+  function toggleTheme() {
+    const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem('theme', next);
+    } catch {
+      // Blocked storage: the choice just won't persist.
+    }
+  }
   async function support() {
     const r = await api<{ conversationId: string }>('/api/conversations/support', { method: 'POST' });
     router.push(`/chat?c=${r.conversationId}`);
@@ -184,6 +193,9 @@ function UserMenu() {
               <LifeBuoy className="size-4" /> {me.role === 'CUSTOMER' ? 'Ask support' : 'Chat with Admin'}
             </Menu.Item>
           )}
+          <Menu.Item onSelect={toggleTheme} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-bg-elev min-[400px]:hidden">
+            <SunMoon className="size-4" /> Switch theme
+          </Menu.Item>
           <Menu.Separator className="my-1 h-px bg-line" />
           <Menu.Item onSelect={logout} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm text-state-err outline-none data-[highlighted]:bg-bg-elev">
             <LogOut className="size-4" /> Log out
@@ -202,7 +214,7 @@ function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-bg-card">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-4 sm:px-6">
         <Logo href={homePath(me)} />
         <nav className="ml-4 hidden items-center gap-1 lg:flex">
           {items.map((i) => (
@@ -218,34 +230,77 @@ function Header() {
             </Link>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1.5">
           <ConnectionDot />
-          <ThemeToggle />
+          {/* Very narrow screens: the theme switch moves into the account menu. */}
+          <ThemeToggle className="hidden min-[400px]:inline-flex" />
           <NotificationBell />
           {me.kind === 'user' && me.role === 'CUSTOMER' && (
             <>
-              <SupportButton />
+              {/* Phones: support is in the account menu ("Ask support"). */}
+              <span className="hidden sm:contents">
+                <SupportButton />
+              </span>
               <CartButton />
             </>
           )}
           <UserMenu />
         </div>
       </div>
-      <nav className="flex gap-1 overflow-x-auto px-4 pb-2 lg:hidden">
-        {items.map((i) => (
-          <Link
-            key={i.href}
-            href={i.href}
-            className={cn(
-              'shrink-0 rounded-full px-3 py-1.5 text-sm font-medium',
-              active(i.href) ? 'bg-primary text-on-primary' : 'text-ink-mid',
-            )}
-          >
-            {i.label}
-          </Link>
-        ))}
-      </nav>
+      <MobileNav items={items} isActive={active} pathname={pathname} />
     </header>
+  );
+}
+
+/**
+ * Phone / tablet menu: one swipeable row. The current page is scrolled into view, and the edges
+ * fade out where more items are hidden, so it is clear the row scrolls.
+ */
+function MobileNav({ items, isActive, pathname }: { items: { href: string; label: string }[]; isActive: (href: string) => boolean; pathname: string }) {
+  const row = useRef<HTMLElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  const measure = () => {
+    const el = row.current;
+    if (!el) return;
+    setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  };
+
+  useEffect(() => {
+    const el = row.current;
+    const current = el?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (el && current) el.scrollTo({ left: current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2, behavior: 'smooth' });
+    measure();
+  }, [pathname]);
+
+  useEffect(() => {
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  const start = edges.left ? 'transparent 0, black 28px' : 'black 0';
+  const end = edges.right ? 'black calc(100% - 28px), transparent 100%' : 'black 100%';
+  return (
+    <nav
+      ref={row}
+      onScroll={measure}
+      className="flex snap-x gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] lg:hidden [&::-webkit-scrollbar]:hidden"
+      style={edges.left || edges.right ? { maskImage: `linear-gradient(to right, ${start}, ${end})` } : undefined}
+    >
+      {items.map((i) => (
+        <Link
+          key={i.href}
+          href={i.href}
+          aria-current={isActive(i.href) ? 'page' : undefined}
+          className={cn(
+            'shrink-0 snap-start rounded-full px-3 py-1.5 text-sm font-medium',
+            isActive(i.href) ? 'bg-primary text-on-primary' : 'text-ink-mid',
+          )}
+        >
+          {i.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 

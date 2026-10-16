@@ -147,3 +147,54 @@
 [data-theme='dark'] img[src='/default-account.svg'] {
   content: url('/default-account-dark.svg');
 }
+
+/*
+ * Responsive tables. On phones (< 768px) a table with .rtable becomes a stack of rows:
+ * each cell is one line, "label .... value", the label coming from the cell's data-label.
+ * Cells with .rt-main (the account / user) and .rt-actions (buttons) span the whole row.
+ */
+@media (max-width: 767px) {
+  .rtable {
+    min-width: 0 !important;
+  }
+  .rtable thead {
+    display: none;
+  }
+  .rtable tbody,
+  .rtable tr,
+  .rtable td {
+    display: block;
+    width: 100%;
+  }
+  .rtable tr {
+    padding: 0.875rem 1rem;
+  }
+  .rtable td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 1.75rem;
+    padding: 0.2rem 0 !important;
+    text-align: right;
+  }
+  .rtable td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: rgb(var(--ink-lo));
+    text-align: left;
+  }
+  .rtable td.rt-main {
+    display: block;
+    padding-bottom: 0.5rem !important;
+    text-align: left;
+  }
+  .rtable td.rt-actions {
+    justify-content: flex-end;
+    padding-top: 0.5rem !important;
+  }
+  .rtable td.rt-actions > * {
+    justify-content: flex-end;
+  }
+}

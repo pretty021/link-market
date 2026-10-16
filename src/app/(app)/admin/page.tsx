@@ -386,7 +386,7 @@ export default function AdminDashboard() {
         <TodaySoldProgress posts={posts} />
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[7fr_3fr]">
+      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
         <Card className="min-w-0">
           <CardHeader title="Link requests" subtitle="Name, price, save, accept." icon={<Inbox className="size-5" />} />
           {pending === null ? (
@@ -539,8 +539,8 @@ function RequestRow({ post, onDone }: { post: Post; onDone: (next?: Post) => voi
           <span className="mt-0.5 block">{sent.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
         </time>
       </div>
-      <div className="flex gap-4 px-4 py-4">
-        <div className="shrink-0 pt-6">
+      <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row">
+        <div className="shrink-0 sm:pt-6">
           <ImageUpload value={image} onChange={setImage} placeholderSrc={kindLogoSrc(post.kind) ?? DEFAULT_ACCOUNT_IMAGE} imageOnly />
         </div>
         <div className="min-w-0 flex-1 space-y-3">

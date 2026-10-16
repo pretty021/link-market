@@ -116,7 +116,7 @@ export function AccountFeed({ kind, title, subtitle }: { kind: AccountKind; titl
         />
       </Card>
     ) : (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{items.map(usesAccountCard(kind) ? renderCard : renderLegacyCard)}</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{items.map(usesAccountCard(kind) ? renderCard : renderLegacyCard)}</div>
     );
 
   const renderCard = (p: Post) => (
@@ -231,7 +231,7 @@ function LinkCard({ post, mine, inCart, busy, onOpen, onToggleCart, onExpired }:
       personStatus={post.clientOnline ? <StatusDot tone="ok">Available</StatusDot> : <StatusDot tone="lo">Away</StatusDot>}
       action={
         done ? (
-          <Button asChild size="sm" variant="outline" className="size-9 rounded-lg px-0"><Link href="/chat" aria-label="Messages" title="Messages"><MessageCircle /></Link></Button>
+          <Button asChild size="sm" variant="outline" className="rounded-lg px-3"><Link href="/chat"><MessageCircle /> Chat</Link></Button>
         ) : mine ? (
           <Button asChild size="sm" variant="purple" className="rounded-lg"><Link href="/cart">Open in cart</Link></Button>
         ) : (
@@ -307,7 +307,7 @@ function OtherAccountCard({
           <span className="text-xs text-ink-lo">{post.status === 'PROGRESSING' ? 'In progress' : 'Available'}</span>
         )}
         {done ? (
-          <Button asChild size="sm" variant="outline" className="size-9 px-0"><Link href="/chat" aria-label="Messages" title="Messages"><MessageCircle /></Link></Button>
+          <Button asChild size="sm" variant="outline" className="rounded-lg px-3"><Link href="/chat"><MessageCircle /> Chat</Link></Button>
         ) : mine ? (
           <Button asChild size="sm" variant="purple"><Link href="/cart">Open in cart</Link></Button>
         ) : (
@@ -318,7 +318,7 @@ function OtherAccountCard({
             disabled={!inCart && post.status !== 'PUBLISHED'}
             onClick={onToggleCart}
           >
-            <ShoppingCart /> {inCart ? 'Remove cart' : 'Cart'}
+            <ShoppingCart /> {inCart ? 'Remove' : post.status === 'PROGRESSING' ? 'In progress' : 'Add'}
           </Button>
         )}
       </div>

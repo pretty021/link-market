@@ -78,7 +78,7 @@ export default function ClientAnalysisPage() {
       {posts === null ? (
         <div className="flex justify-center py-16"><Spinner /></div>
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
           {periods.map((period) => (
             <PeriodCard key={period.key} period={period} report={sellingReport(posts, period.from)} />
           ))}

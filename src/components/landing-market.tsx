@@ -53,7 +53,7 @@ function ListingCard({ l }: { l: LandingListing }) {
   const initials = accountInitials(heading);
   const sub = subline(l);
   return (
-    <Link href="/register" className="group flex h-full flex-col rounded-2xl border border-line bg-bg-card p-2 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift">
+    <Link href="/register" className="group flex h-full min-w-0 flex-col rounded-2xl border border-line bg-bg-card p-2 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift">
       <div className="acc-cover relative aspect-[1.9/1] overflow-hidden rounded-xl" data-tint={coverTint(heading)}>
         <span aria-hidden="true" className="pointer-events-none absolute -bottom-[16%] -right-[2%] select-none font-display text-[6.5rem] font-bold leading-none tracking-tighter" style={{ color: 'var(--acc-faint)' }}>
           {initials}
@@ -141,7 +141,7 @@ export function LandingMarket({ listings, counts }: { listings: LandingListing[]
       {shown.length === 0 ? (
         <p className="mt-8 rounded-2xl border border-dashed border-line px-6 py-12 text-center text-sm text-ink-lo">New listings appear here as soon as they are reviewed.</p>
       ) : (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 [&>*]:min-w-0">
           {shown.map((l) => (
             <ListingCard key={l.id} l={l} />
           ))}

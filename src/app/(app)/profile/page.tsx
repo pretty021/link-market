@@ -104,7 +104,7 @@ export default function ProfilePage() {
   return (
     <>
       <PageTitle title="Profile" subtitle={me.kind === 'admin' ? 'Administrator account' : me.role === 'CLIENT' ? 'Client account' : 'Customer account'} />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader title="Your details" icon={<UserRound className="size-5" />} />
           <form onSubmit={saveProfile} className="space-y-4 p-5">

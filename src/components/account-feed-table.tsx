@@ -35,7 +35,7 @@ export function CustomerAccountTable({
   const showViewing = posts.some((p) => p.status !== 'COMPLETED');
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[820px] text-sm">
+      <table className="rtable w-full min-w-[820px] text-sm">
         <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
           <tr>
             <th className="px-4 py-3 font-medium">Account</th>
@@ -57,7 +57,7 @@ export function CustomerAccountTable({
             const href = postHref(post.title);
             return (
               <tr key={post.id} className={cn('hover:bg-bg-elev/40', done && 'bg-state-ok/10')}>
-                <td className="px-4 py-3">
+                <td className="rt-main px-4 py-3">
                   <div className="flex items-center gap-3">
                     <AccountThumb name={heading} photo={post.image?.url} className="size-10 rounded-xl text-xs [&>span]:text-sm" />
                     <div className="min-w-0 max-w-[260px]">
@@ -76,15 +76,15 @@ export function CustomerAccountTable({
                     </div>
                   </div>
                 </td>
-                {linkedIn && <td className="px-4 py-3 tabular-nums text-ink-mid">{post.connects}</td>}
-                <td className="px-4 py-3">
+                {linkedIn && <td data-label="Connects" className="px-4 py-3 tabular-nums text-ink-mid">{post.connects}</td>}
+                <td data-label="Seller" className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Avatar name={post.clientName} src={post.clientImage?.url} size={28} online={post.clientOnline} />
                     <span className="truncate text-ink-mid">{post.clientName}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                <td data-label="Status" className="px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 md:justify-start">
                     <StatusBadge status={post.status} mine={mine} clientChecking={mine && !!post.progressingPausedAt} />
                     {post.status === 'PROGRESSING' && mine && (
                       <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
@@ -92,7 +92,7 @@ export function CustomerAccountTable({
                   </div>
                 </td>
                 {showViewing && (
-                  <td className="px-4 py-3 text-ink-mid">
+                  <td data-label="Viewing" className="px-4 py-3 text-ink-mid">
                     {!done && (
                       <span className="inline-flex items-center gap-1.5">
                         <Eye className="size-4" /> {post.viewers}
@@ -100,15 +100,15 @@ export function CustomerAccountTable({
                     )}
                   </td>
                 )}
-                <td className="px-4 py-3">
+                <td data-label="Updated" className="px-4 py-3">
                   <UpdatedStamp when={new Date(post.updatedAt)} />
                 </td>
-                <td className="px-4 py-3 text-right font-bold tabular-nums">{formatPrice(post.price)}</td>
-                <td className="px-4 py-3 text-right">
+                <td data-label="Price" className="px-4 py-3 text-right font-bold tabular-nums">{formatPrice(post.price)}</td>
+                <td className="rt-actions px-4 py-3 text-right">
                   {done ? (
-                    <Button asChild size="sm" variant="outline" className="size-9 rounded-xl px-0">
-                      <Link href="/chat" aria-label="Messages" title="Messages">
-                        <MessageCircle />
+                    <Button asChild size="sm" variant="outline" className="rounded-lg px-3">
+                      <Link href="/chat">
+                        <MessageCircle /> Chat
                       </Link>
                     </Button>
                   ) : mine ? (
@@ -122,11 +122,11 @@ export function CustomerAccountTable({
                       loading={busy === post.id}
                       disabled={!inCart && post.status !== 'PUBLISHED'}
                       onClick={() => onToggleCart(post)}
-                      className={cn('rounded-xl', inCart || post.status === 'PROGRESSING' ? 'px-3' : 'size-9 px-0')}
+                      className="rounded-lg px-3"
                       aria-label={inCart ? 'Remove from cart' : 'Add to cart'}
                       title={inCart ? 'Remove from cart' : 'Add to cart'}
                     >
-                      <ShoppingCart /> {inCart ? 'Remove' : post.status === 'PROGRESSING' ? 'In progress' : null}
+                      <ShoppingCart /> {inCart ? 'Remove' : post.status === 'PROGRESSING' ? 'In progress' : 'Add'}
                     </Button>
                   )}
                 </td>

@@ -17,7 +17,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const actor = await currentActor();
   if (actor) redirect(homePath(actor));
   return (
-    <div className="grid min-h-screen bg-bg-card lg:grid-cols-2">
+    <div className="grid grid-cols-1 min-h-screen bg-bg-card lg:grid-cols-2">
       <div className="flex flex-col px-6 py-6 sm:px-10">
         <div className="flex items-center justify-between">
           <Logo />

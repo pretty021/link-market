@@ -110,7 +110,7 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
             ) : layout === 'table' ? (
               <AccountTable posts={view.shown!} showConnects={false} flash={flash} onExpired={() => void loadPosts()} />
             ) : (
-              <ul className={cn('grid bg-bg-base/70 p-4', usesAccountCard(kind) ? 'gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'gap-3 sm:grid-cols-2 lg:grid-cols-4')}>
+              <ul className={cn('grid grid-cols-1 bg-bg-base/70 p-3 sm:p-4', usesAccountCard(kind) ? 'gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3' : 'gap-3 sm:grid-cols-2 lg:grid-cols-4')}>
                 {view.shown!.map((p) =>
                   usesAccountCard(kind) ? (
                     <AccountCardItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
@@ -140,7 +140,6 @@ function AccountCardItem({ post, flash, onExpired }: { post: Post; flash: boolea
         badges={
           <>
             <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
-            {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
             {post.approval && !post.visible && <Badge tone="slate">Hidden</Badge>}
           </>
         }

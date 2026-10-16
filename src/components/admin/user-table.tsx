@@ -93,7 +93,7 @@ export function UserTable({ role }: { role: Role }) {
         ) : users.length === 0 ? (
           <Empty title={`No ${isClient ? 'clients' : 'customers'} found`} />
         ) : (
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="rtable w-full min-w-[760px] text-sm">
             <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
               <tr>
                 <th className="px-4 py-3 font-medium">User</th>
@@ -113,7 +113,7 @@ export function UserTable({ role }: { role: Role }) {
                   className={isClient ? 'cursor-pointer hover:bg-bg-elev/40' : 'hover:bg-bg-elev/40'}
                   onClick={isClient ? () => setViewing(u) : undefined}
                 >
-                  <td className="px-4 py-3">
+                  <td className="rt-main px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar name={u.name} src={u.image?.url} online={u.online} />
                       <div className="min-w-0">
@@ -123,18 +123,18 @@ export function UserTable({ role }: { role: Role }) {
                     </div>
                   </td>
                   {isClient && (
-                    <td className="px-4 py-3 text-xs text-ink-mid">
+                    <td data-label="Sells" className="px-4 py-3 text-xs text-ink-mid">
                       {(u.sellerKinds && u.sellerKinds.length > 0 ? u.sellerKinds : ['LINKEDIN' as AccountKind]).map((kind) => ACCOUNT_KIND_LABEL[kind]).join(', ')}
                     </td>
                   )}
-                  <td className="px-4 py-3">
+                  <td data-label="Status" className="px-4 py-3">
                     {u.isBlocked ? <Badge tone="red">Blocked</Badge> : u.online ? <Badge tone="mint">Online</Badge> : <Badge>Offline</Badge>}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold tabular-nums">{isClient ? completed.filter((p) => p.clientId === u.id).length : (u.b_counts ?? 0)}</td>
-                  {isClient && <td className="px-4 py-3 text-right tabular-nums">{u.paymentAddresses?.length ?? 0}</td>}
-                  {!isClient && <td className="px-4 py-3 text-right tabular-nums">{u.cartLimit}</td>}
-                  <td className="px-4 py-3 text-xs text-ink-lo">{u.lastSeenAt ? timeAgo(u.lastSeenAt) : 'Never'}</td>
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <td data-label={isClient ? 'Sold' : 'Buy'} className="px-4 py-3 text-right font-semibold tabular-nums">{isClient ? completed.filter((p) => p.clientId === u.id).length : (u.b_counts ?? 0)}</td>
+                  {isClient && <td data-label="Payments" className="px-4 py-3 text-right tabular-nums">{u.paymentAddresses?.length ?? 0}</td>}
+                  {!isClient && <td data-label="Cart limit" className="px-4 py-3 text-right tabular-nums">{u.cartLimit}</td>}
+                  <td data-label="Last seen" className="px-4 py-3 text-xs text-ink-lo">{u.lastSeenAt ? timeAgo(u.lastSeenAt) : 'Never'}</td>
+                  <td className="rt-actions px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       <Button size="sm" variant="ghost" onClick={() => act(u, 'chat')} loading={busy === u.id + 'chat'} title="Start chat"><MessageCircle /></Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditing(u)} title="Edit"><Pencil /></Button>

@@ -118,7 +118,7 @@ export default function ClientDashboard() {
         <Button onClick={() => setRequestOpen(true)}><FilePlus2 /> Link Request</Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card>
           <CardHeader
             title="My Links"
@@ -140,7 +140,7 @@ export default function ClientDashboard() {
               ) : layout === 'table' ? (
                 <AccountTable posts={view.shown!} showConnects flash={flash} onExpired={() => void loadPosts()} />
               ) : (
-              <ul className="grid gap-4 bg-bg-base/70 p-4 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className="grid grid-cols-1 gap-3 bg-bg-base/70 p-3 sm:grid-cols-2 sm:gap-4 sm:p-4 xl:grid-cols-3">
                   {view.shown!.map((p) => (
                     <LinkItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
                   ))}
@@ -215,7 +215,6 @@ function LinkItem({ post, flash, onExpired }: { post: Post; flash: boolean; onEx
         badges={
           <>
             <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
-            {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
             {post.approval && !post.visible && <Badge tone="slate">Hidden</Badge>}
           </>
         }

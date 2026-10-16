@@ -9,9 +9,9 @@ export function Logo({ href = '/', className }: { href?: string; className?: str
   return (
     <Link href={href} aria-label="inonlink home" className={cn('flex shrink-0 items-center', className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/inonlink-logo-light.svg" alt="inonlink" width={443} height={120} className="h-8 w-auto dark:hidden" />
+      <img src="/brand/inonlink-logo-light.svg" alt="inonlink" width={443} height={120} className="h-7 w-auto sm:h-8 dark:hidden" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/inonlink-logo-dark.svg" alt="inonlink" width={443} height={120} className="hidden h-8 w-auto dark:block" />
+      <img src="/brand/inonlink-logo-dark.svg" alt="inonlink" width={443} height={120} className="hidden h-7 w-auto sm:h-8 dark:block" />
     </Link>
   );
 }

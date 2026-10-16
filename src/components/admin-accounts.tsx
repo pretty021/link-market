@@ -96,7 +96,7 @@ export function AdminAccounts({
         ) : shown.length === 0 ? (
           <Empty title={view.total === 0 ? `No ${noun}` : `No ${noun} match`} hint={view.total === 0 ? undefined : 'Try a different search or status.'} />
         ) : (
-          <table className="w-full min-w-[940px] text-sm">
+          <table className="rtable w-full min-w-[940px] text-sm">
             <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
               <tr>
                 <th className="px-4 py-3 font-medium">Link</th>
@@ -114,7 +114,7 @@ export function AdminAccounts({
             <tbody className="divide-y divide-line/40">
               {shown.map((p) => (
                 <tr key={p.id} className="hover:bg-bg-elev/40">
-                  <td className="px-4 py-3">
+                  <td className="rt-main px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-14 shrink-0 overflow-hidden rounded-lg bg-bg-elev">
                         {p.image?.url ? (
@@ -131,24 +131,24 @@ export function AdminAccounts({
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-ink-mid">{p.clientName}</td>
-                  <td className="px-4 py-3">
+                  <td data-label="Seller" className="px-4 py-3 text-ink-mid">{p.clientName}</td>
+                  <td data-label="Status" className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       <StatusBadge status={p.status} clientChecking={!!p.progressingPausedAt} />
                       {p.approval && p.status !== 'REQUESTED' && <Badge tone="slate">Approved</Badge>}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td data-label="Time" className="px-4 py-3">
                     <Stamp at={p.status === 'REQUESTED' ? p.createdAt : p.updatedAt} />
                   </td>
-                  <td className="px-4 py-3 text-ink-mid">{p.holderName ?? '-'}</td>
-                  <td className="px-4 py-3"><VisibilitySwitch post={p} onChange={upsert} /></td>
-                  <td className="px-4 py-3">
+                  <td data-label="Buyer" className="px-4 py-3 text-ink-mid">{p.holderName ?? '-'}</td>
+                  <td data-label="Visible" className="px-4 py-3"><VisibilitySwitch post={p} onChange={upsert} /></td>
+                  <td data-label="Countdown" className="px-4 py-3">
                     {p.status === 'PROGRESSING' ? <Countdown expiresAt={p.progressingExpiresAt} paused={!!p.progressingPausedAt} onDone={() => void load()} /> : <span className="text-ink-lo">-</span>}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatPrice(p.price)}</td>
-                  <td className="px-4 py-3 text-right text-ink-mid">{p.viewCount} <span className="text-ink-lo">({p.viewers} now)</span></td>
-                  <td className="px-4 py-3">
+                  <td data-label="Price" className="px-4 py-3 text-right font-semibold">{formatPrice(p.price)}</td>
+                  <td data-label="Views" className="px-4 py-3 text-right text-ink-mid">{p.viewCount} <span className="text-ink-lo">({p.viewers} now)</span></td>
+                  <td className="rt-actions px-4 py-3">
                     {manageable(p) ? (
                       <div className="flex justify-end gap-1.5">
                         <Button size="icon" variant="outline" className="size-8" onClick={() => setEditing(p)} aria-label="Edit account" title="Edit">

@@ -227,7 +227,7 @@ export default async function Landing() {
       <section className="relative overflow-hidden">
         <CanvasBackground />
         <div className="pointer-events-none absolute -right-40 top-0 size-[36rem] rounded-full bg-primary/10 blur-3xl" />
-        <div className={`${wrap} relative grid items-center gap-14 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:pb-20 lg:pt-20`}>
+        <div className={`${wrap} relative grid grid-cols-1 items-center gap-14 pb-16 pt-14 lg:grid-cols-[1.1fr_1fr] lg:pb-20 lg:pt-20`}>
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-line bg-bg-card/80 px-3 py-1 text-xs font-medium text-ink-mid">
               <span className="size-1.5 rounded-full bg-state-ok" />
@@ -323,13 +323,13 @@ export default async function Landing() {
 
       {/* Safety */}
       <section id="safety" className="scroll-mt-16 pb-20">
-        <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_1.35fr]`}>
+        <div className={`${wrap} grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.35fr]`}>
           <div>
             <p className={eyebrow}>Safety</p>
             <h2 className={h2}>Safe by design</h2>
             <p className="mt-2 text-ink-mid">These rules are built into the platform, not left to trust.</p>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {safety.map((s) => (
               <div key={s.title} className="rounded-2xl border border-line bg-bg-card p-5">
                 <span className={cn('flex size-10 items-center justify-center rounded-xl', s.tone)}>
@@ -348,7 +348,7 @@ export default async function Landing() {
         <div className={wrap}>
           <div className="relative overflow-hidden rounded-3xl border border-line bg-bg-card p-8 sm:p-10">
             <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-teal-400/15 blur-3xl" />
-            <div className="relative grid gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
+            <div className="relative grid grid-cols-1 gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
               <div>
                 <p className={eyebrow}>For sellers</p>
                 <h2 className={h2}>Send a list. We do the rest.</h2>
@@ -362,9 +362,12 @@ export default async function Landing() {
               <ul className="space-y-3">
                 {sellerPerks.map((p) => (
                   <li key={p.title} className="flex items-center gap-3 rounded-xl border border-line bg-bg-base/70 px-4 py-3">
-                    <p.icon className="size-4 text-teal-600 dark:text-teal-300" />
-                    <span className="flex-1 text-sm font-medium text-ink-hi">{p.title}</span>
-                    <span className="text-xs text-ink-lo">{p.note}</span>
+                    <p.icon className="size-4 shrink-0 text-teal-600 dark:text-teal-300" />
+                    {/* Narrow phones: the note sits under the title instead of squeezing it. */}
+                    <span className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                      <span className="text-sm font-medium text-ink-hi">{p.title}</span>
+                      <span className="text-xs text-ink-lo">{p.note}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -375,7 +378,7 @@ export default async function Landing() {
 
       {/* FAQ */}
       <section id="faq" className="scroll-mt-16 pb-20">
-        <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_1.35fr]`}>
+        <div className={`${wrap} grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.35fr]`}>
           <div>
             <p className={eyebrow}>FAQ</p>
             <h2 className={h2}>Questions, answered</h2>
@@ -438,7 +441,7 @@ export default async function Landing() {
       </section>
 
       <footer className="border-t border-line/70 bg-bg-base">
-        <div className={`${wrap} grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
+        <div className={`${wrap} grid grid-cols-1 gap-10 py-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]`}>
           <div>
             <Logo />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-lo">

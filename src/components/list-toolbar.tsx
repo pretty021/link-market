@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { Post } from '@/lib/client/types';
 import { cn } from '@/lib/utils';
 
@@ -249,6 +249,7 @@ export function ListToolbar({
 }) {
   const { q, setQ, field, setField, fields, status, setStatus, sort, setSort, isDefault, reset, statusOptions, sortable, sortGroups } = controls;
   const [draft, setDraft] = useState(q);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const stack = layout === 'stack';
   const showStatus = statusOptions.length > 1;
   const showSort = sortable;
@@ -398,13 +399,33 @@ export function ListToolbar({
     <div className={cn('space-y-3', className)}>
       {search}
       {countStyle === 'text' && (showStatus || showSort) && (
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:gap-8">
-            {showStatus && statusGroup}
-            {showSort && sortGroup}
+        <>
+          {/* Phones: Status and Sort fold behind one button so the list starts higher up. */}
+          <div className="flex items-center justify-between gap-3 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              aria-expanded={filtersOpen}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition',
+                filtersOpen ? 'border-primary/60 bg-primary/10 text-ink-hi' : 'border-line text-ink-mid',
+              )}
+            >
+              <SlidersHorizontal className="size-4" />
+              {[showStatus && 'Status', showSort && 'Sort'].filter(Boolean).join(' & ')}
+              {!isDefault && <span className="size-1.5 rounded-full bg-primary" aria-label="Filters on" />}
+              <ChevronDown className={cn('size-4 transition', filtersOpen && 'rotate-180')} />
+            </button>
+            {footer}
           </div>
-          {footer}
-        </div>
+          <div className={cn('flex-col gap-3 lg:flex-row lg:items-end lg:justify-between sm:flex', filtersOpen ? 'flex' : 'hidden')}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-8">
+              {showStatus && statusGroup}
+              {showSort && sortGroup}
+            </div>
+            <div className="hidden sm:block">{footer}</div>
+          </div>
+        </>
       )}
       {countStyle === 'text' && !(showStatus || showSort) && footer}
       {countStyle === 'badge' && (showStatus || showSort) && (

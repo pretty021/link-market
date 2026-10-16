@@ -68,7 +68,7 @@ export function AccountTable({
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-sm">
+      <table className="rtable w-full min-w-[720px] text-sm">
         <thead className="border-b border-line/70 text-left text-xs text-ink-lo">
           <tr>
             <th className="px-4 py-3 font-medium">Account</th>
@@ -85,7 +85,7 @@ export function AccountTable({
             const linkedIn = (post.kind ?? 'LINKEDIN') === 'LINKEDIN';
             return (
               <tr key={post.id} className={cn('hover:bg-bg-elev/40', flash.has(post.id) && 'bg-brand-mint/10')}>
-                <td className="px-4 py-3">
+                <td className="rt-main px-4 py-3">
                   <div className="flex items-center gap-3">
                     <div className="size-8 shrink-0 overflow-hidden rounded-md bg-bg-elev">
                       {post.image?.url ? (
@@ -101,21 +101,21 @@ export function AccountTable({
                     <PostTitle post={post} className="max-w-[240px]" headingClassName="font-medium" />
                   </div>
                 </td>
-                {showConnects && <td className="px-4 py-3 tabular-nums text-ink-mid">{post.connects}</td>}
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
+                {showConnects && <td data-label="Connects" className="px-4 py-3 tabular-nums text-ink-mid">{post.connects}</td>}
+                <td data-label="Status" className="px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 md:justify-start">
                     <StatusBadge status={post.status} clientChecking={!!post.progressingPausedAt} />
                     {post.approval ? <Badge tone="mint">Accepted</Badge> : <Badge tone="amber">Awaiting admin</Badge>}
                     {post.approval && !post.visible && <Badge tone="slate">Hidden</Badge>}
                   </div>
                 </td>
-                <td className="px-4 py-3">
+                <td data-label="Updated" className="px-4 py-3">
                   <time dateTime={when.toISOString()} className="block text-[11px] leading-tight tabular-nums text-ink-lo">
                     <span className="block font-semibold text-ink-mid">{when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
                     <span className="mt-0.5 block">{when.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                   </time>
                 </td>
-                <td className="px-4 py-3 text-ink-mid">
+                <td data-label="Buyer" className="px-4 py-3 text-ink-mid">
                   {post.status === 'PROGRESSING' ? (
                     <div className="space-y-1">
                       <p>{post.holderName ?? '-'}</p>
@@ -125,7 +125,7 @@ export function AccountTable({
                     post.holderName ?? '-'
                   )}
                 </td>
-                <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatPrice(post.price)}</td>
+                <td data-label="Price" className="px-4 py-3 text-right font-semibold tabular-nums">{formatPrice(post.price)}</td>
               </tr>
             );
           })}
