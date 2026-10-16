@@ -23,11 +23,11 @@ type Tab = 'ALL' | AccountKind;
 
 const TABS: { id: Tab; label: string; icon: LucideIcon; tone: string }[] = [
   { id: 'ALL', label: 'All', icon: LayoutGrid, tone: 'bg-primary/15 text-primary' },
-  { id: 'LINKEDIN', label: 'LinkedIn', icon: Briefcase, tone: 'bg-[#4466e0]/15 text-[#4466e0] dark:text-[#8aa4ff]' },
-  { id: 'GV', label: 'Google Voice', icon: Phone, tone: 'bg-[#25a18a]/15 text-[#1d8a76] dark:text-[#5fd6bf]' },
-  { id: 'GMAIL', label: 'Gmail', icon: Mail, tone: 'bg-[#e5484d]/15 text-[#d1373c] dark:text-[#ff8a8d]' },
-  { id: 'WHATSAPP', label: 'WhatsApp', icon: MessageCircle, tone: 'bg-[#25d366]/15 text-[#159a49] dark:text-[#5fe397]' },
-  { id: 'TELEGRAM', label: 'Telegram', icon: Send, tone: 'bg-[#2aabee]/15 text-[#1a8cc7] dark:text-[#6cc9f7]' },
+  { id: 'LINKEDIN', label: 'LinkedIn', icon: Briefcase, tone: 'bg-primary/15 text-primary' },
+  { id: 'GV', label: 'Google Voice', icon: Phone, tone: 'bg-state-ok/15 text-state-ok' },
+  { id: 'GMAIL', label: 'Gmail', icon: Mail, tone: 'bg-ink-hi/10 text-ink-hi' },
+  { id: 'WHATSAPP', label: 'WhatsApp', icon: MessageCircle, tone: 'bg-state-ok/15 text-state-ok' },
+  { id: 'TELEGRAM', label: 'Telegram', icon: Send, tone: 'bg-primary/15 text-primary' },
 ];
 
 const KIND_CHIP: Record<AccountKind, string> = {

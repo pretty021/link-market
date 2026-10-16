@@ -10,26 +10,26 @@ type Network = { badge: string; name: string; standard: string; className: strin
 // The payment "type" is free text set by the Admin (e.g. "USDT TRC20", "PayPal", "BTC").
 // These tables turn it into an icon, a full name and a network badge.
 const NETWORKS: { match: RegExp; network: Network }[] = [
-  { match: /\b(TRC-?20|TRX|TRON)\b/, network: { badge: 'TRX', name: 'Tron', standard: 'TRC20', className: 'bg-[#e5484d] text-white' } },
-  { match: /\b(ERC-?20|ETH|ETHEREUM)\b/, network: { badge: 'ETH', name: 'Ethereum', standard: 'ERC20', className: 'bg-[#627eea] text-white' } },
-  { match: /\b(BEP-?20|BSC|BNB ?CHAIN)\b/, network: { badge: 'BSC', name: 'BSC', standard: 'BEP20', className: 'bg-[#d6a50a] text-white' } },
-  { match: /\b(SOL|SOLANA|SPL)\b/, network: { badge: 'SOLANA', name: 'Solana', standard: 'SPL', className: 'bg-[#8b5cf6] text-white' } },
-  { match: /\b(POLYGON|MATIC)\b/, network: { badge: 'POLYGON', name: 'Polygon', standard: 'Polygon', className: 'bg-[#7b3fe4] text-white' } },
-  { match: /\bBASE\b/, network: { badge: 'BASE', name: 'Base', standard: 'Base', className: 'bg-[#0052ff] text-white' } },
-  { match: /\b(ARB|ARBITRUM)\b/, network: { badge: 'ARB', name: 'Arbitrum', standard: 'Arbitrum', className: 'bg-[#2d74da] text-white' } },
+  { match: /\b(TRC-?20|TRX|TRON)\b/, network: { badge: 'TRX', name: 'Tron', standard: 'TRC20', className: 'bg-ink-hi text-bg-card' } },
+  { match: /\b(ERC-?20|ETH|ETHEREUM)\b/, network: { badge: 'ETH', name: 'Ethereum', standard: 'ERC20', className: 'bg-primary text-on-primary' } },
+  { match: /\b(BEP-?20|BSC|BNB ?CHAIN)\b/, network: { badge: 'BSC', name: 'BSC', standard: 'BEP20', className: 'bg-state-ok text-white' } },
+  { match: /\b(SOL|SOLANA|SPL)\b/, network: { badge: 'SOLANA', name: 'Solana', standard: 'SPL', className: 'border border-ink-hi text-ink-hi' } },
+  { match: /\b(POLYGON|MATIC)\b/, network: { badge: 'POLYGON', name: 'Polygon', standard: 'Polygon', className: 'border border-primary text-primary' } },
+  { match: /\bBASE\b/, network: { badge: 'BASE', name: 'Base', standard: 'Base', className: 'bg-primary text-on-primary' } },
+  { match: /\b(ARB|ARBITRUM)\b/, network: { badge: 'ARB', name: 'Arbitrum', standard: 'Arbitrum', className: 'border border-primary text-primary' } },
 ];
 
 const COINS: { match: RegExp; code: string; name: string; glyph: string; color: string; stable?: boolean; crypto?: boolean }[] = [
-  { match: /\bUSDT|TETHER\b/, code: 'USDT', name: 'Tether USD', glyph: '₮', color: '#26a17b', stable: true, crypto: true },
-  { match: /\bUSDC\b/, code: 'USDC', name: 'USD Coin', glyph: '$', color: '#2775ca', stable: true, crypto: true },
-  { match: /\bDAI\b/, code: 'DAI', name: 'Dai', glyph: '◈', color: '#f5ac37', stable: true, crypto: true },
-  { match: /\bBTC|BITCOIN\b/, code: 'BTC', name: 'Bitcoin', glyph: '₿', color: '#f7931a', crypto: true },
-  { match: /^\s*(ETH|ETHEREUM)\b/, code: 'ETH', name: 'Ethereum', glyph: 'Ξ', color: '#627eea', crypto: true },
-  { match: /^\s*(SOL|SOLANA)\b/, code: 'SOL', name: 'Solana', glyph: 'S', color: '#9945ff', crypto: true },
-  { match: /\bLTC|LITECOIN\b/, code: 'LTC', name: 'Litecoin', glyph: 'Ł', color: '#345d9d', crypto: true },
-  { match: /\bPAYPAL\b/, code: 'PayPal', name: 'Email transfer', glyph: 'P', color: '#1e4db7' },
-  { match: /\bWISE\b/, code: 'Wise', name: 'Bank transfer', glyph: 'W', color: '#163300' },
-  { match: /\bPAYONEER\b/, code: 'Payoneer', name: 'Payoneer transfer', glyph: 'P', color: '#ff4800' },
+  { match: /\bUSDT|TETHER\b/, code: 'USDT', name: 'Tether USD', glyph: '₮', color: '#059669', stable: true, crypto: true },
+  { match: /\bUSDC\b/, code: 'USDC', name: 'USD Coin', glyph: '$', color: '#0a66c2', stable: true, crypto: true },
+  { match: /\bDAI\b/, code: 'DAI', name: 'Dai', glyph: '◈', color: '#0f172a', stable: true, crypto: true },
+  { match: /\bBTC|BITCOIN\b/, code: 'BTC', name: 'Bitcoin', glyph: '₿', color: '#0f172a', crypto: true },
+  { match: /^\s*(ETH|ETHEREUM)\b/, code: 'ETH', name: 'Ethereum', glyph: 'Ξ', color: '#0a66c2', crypto: true },
+  { match: /^\s*(SOL|SOLANA)\b/, code: 'SOL', name: 'Solana', glyph: 'S', color: '#0f172a', crypto: true },
+  { match: /\bLTC|LITECOIN\b/, code: 'LTC', name: 'Litecoin', glyph: 'Ł', color: '#0a66c2', crypto: true },
+  { match: /\bPAYPAL\b/, code: 'PayPal', name: 'Email transfer', glyph: 'P', color: '#0a66c2' },
+  { match: /\bWISE\b/, code: 'Wise', name: 'Bank transfer', glyph: 'W', color: '#059669' },
+  { match: /\bPAYONEER\b/, code: 'Payoneer', name: 'Payoneer transfer', glyph: 'P', color: '#0f172a' },
 ];
 
 const POPULAR = new Set(['USDT', 'BTC', 'PayPal']);
@@ -106,7 +106,7 @@ export function describePayment(p: PaymentAddress): PaymentMethod {
     code,
     name,
     glyph: coin?.glyph ?? (p.type.trim()[0] ?? '?').toUpperCase(),
-    color: coin?.color ?? '#475569',
+    color: coin?.color ?? '#0f172a',
     network,
     stable: !!coin?.stable,
     popular: POPULAR.has(code),

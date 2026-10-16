@@ -34,7 +34,7 @@ function LinkInMark({ className }: { className?: string }) {
 }
 
 // Cover tints (colours per theme are in globals.css, .acc-cover[data-tint=...]).
-const COVER_TINTS = ['blue', 'orange', 'green', 'purple'] as const;
+const COVER_TINTS = ['blue', 'green'] as const;
 
 /** Same account, same colour: a small stable hash of the name picks the tint. */
 export function coverTint(name: string) {

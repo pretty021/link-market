@@ -20,16 +20,17 @@
   --mint: 10 102 194;
   --mint-soft: 0 65 130;
   --mint-deep: 10 102 194;
-  --purple: 109 40 217;
-  --purple-soft: 109 40 217;
-  --purple-deep: 109 40 217;
+  /* 4-colour palette: white, black, blue, green. "purple" and "warn" are blue; "err" is black. */
+  --purple: 10 102 194;
+  --purple-soft: 10 102 194;
+  --purple-deep: 10 102 194;
   --on-mint: 255 255 255;
   --primary: 10 102 194;
   --primary-hover: 0 65 130;
   --on-primary: 255 255 255;
   --ok: 5 150 105;
-  --warn: 180 83 9;
-  --err: 220 38 38;
+  --warn: 10 102 194;
+  --err: 15 23 42;
   --shadow: 15 23 42;
   --shadow-alpha: 0.06;
   --scrollbar: 203 210 220;
@@ -57,16 +58,16 @@
   --mint: 112 181 249;
   --mint-soft: 150 200 251;
   --mint-deep: 112 181 249;
-  --purple: 167 139 250;
-  --purple-soft: 190 170 252;
-  --purple-deep: 167 139 250;
+  --purple: 112 181 249;
+  --purple-soft: 150 200 251;
+  --purple-deep: 112 181 249;
   --on-mint: 10 20 35;
   --primary: 10 102 194;
   --primary-hover: 55 143 233;
   --on-primary: 255 255 255;
   --ok: 74 222 128;
-  --warn: 245 179 66;
-  --err: 248 113 113;
+  --warn: 112 181 249;
+  --err: 236 240 245;
   --shadow: 0 0 0;
   --shadow-alpha: 0.4;
   --scrollbar: 60 67 75;
@@ -127,9 +128,7 @@
   --circle-border: rgb(var(--bg-card));
 }
 .acc-cover[data-tint='blue'] { --h: 222; --center: #4466e0; --edge: #253a8a; --acc-dark: #c3cfff; --circle-dark: #2e47a4; --faint-dark: rgb(37 58 138 / 0.55); }
-.acc-cover[data-tint='orange'] { --h: 18; --center: #b0582f; --edge: #5e2d16; --acc-dark: #f6c0a4; --circle-dark: #773a1e; --faint-dark: rgb(94 45 22 / 0.55); }
 .acc-cover[data-tint='green'] { --h: 160; --center: #25a18a; --edge: #155a4d; --acc-dark: #a4ecdc; --circle-dark: #1a6f5f; --faint-dark: rgb(21 90 77 / 0.55); }
-.acc-cover[data-tint='purple'] { --h: 262; --center: #7058de; --edge: #3b2d8a; --acc-dark: #d3c9ff; --circle-dark: #4b3aa3; --faint-dark: rgb(59 45 138 / 0.55); }
 /* Dark: see-through tints of the banner colour instead of solid card colour. */
 [data-theme='dark'] .acc-cover {
   background: radial-gradient(ellipse at 50% 50%, var(--center) 0%, var(--edge) 100%);

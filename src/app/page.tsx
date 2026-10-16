@@ -31,7 +31,7 @@ import { cn, formatPrice } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 const wrap = 'mx-auto w-full max-w-6xl px-5 sm:px-8';
-const eyebrow = 'text-xs font-semibold text-teal-600 dark:text-teal-300';
+const eyebrow = 'text-xs font-semibold text-state-ok';
 const h2 = 'mt-2 font-display text-3xl font-bold tracking-tight text-ink-hi sm:text-4xl';
 const SUPPORT_EMAIL = 'support@inonlink.com';
 
@@ -94,8 +94,8 @@ const steps: { icon: LucideIcon; title: string; text: string; tone: string }[] =
 const safety: { icon: LucideIcon; title: string; text: string; tone: string }[] = [
   { icon: ShieldCheck, title: 'Reviewed listings', text: 'Every seller and every listing is checked by our team before it goes live.', tone: 'bg-primary/15 text-primary' },
   { icon: Timer, title: 'One buyer at a time', text: 'A hold locks the listing to you, so nobody can buy it out from under you.', tone: 'bg-state-warn/15 text-state-warn' },
-  { icon: Lock, title: 'Private details', text: 'Only you, the seller and our team can see your payment and checking info.', tone: 'bg-teal-500/15 text-teal-600 dark:text-teal-300' },
-  { icon: MessagesSquare, title: 'Real chat', text: 'Talk to sellers and to our support team at any time, before and after you buy.', tone: 'bg-violet-500/15 text-violet-600 dark:text-violet-300' },
+  { icon: Lock, title: 'Private details', text: 'Only you, the seller and our team can see your payment and checking info.', tone: 'bg-state-ok/15 text-state-ok' },
+  { icon: MessagesSquare, title: 'Real chat', text: 'Talk to sellers and to our support team at any time, before and after you buy.', tone: 'bg-primary/15 text-primary' },
 ];
 
 const sellerPerks: { icon: LucideIcon; title: string; note: string }[] = [
@@ -138,7 +138,7 @@ function HoldCard({ hero }: { hero: NonNullable<Awaited<ReturnType<typeof loadPu
   return (
     <div className="relative mx-auto w-full max-w-md lg:mx-0">
       <div className="absolute -left-16 -top-14 hidden items-center gap-3 rounded-xl border border-line bg-bg-card/95 px-3 py-2.5 shadow-lift backdrop-blur sm:flex">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-teal-500/15 text-teal-600 dark:text-teal-300">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-state-ok/15 text-state-ok">
           <ShieldCheck className="size-4" />
         </span>
         <span className="leading-tight">
@@ -238,7 +238,7 @@ export default async function Landing() {
               <br />
               accounts.
               <br />
-              <span className="bg-gradient-to-r from-[#5b8cff] to-[#2dd4bf] bg-clip-text text-transparent">Real sellers.</span>
+              <span className="bg-gradient-to-r from-primary to-state-ok bg-clip-text text-transparent">Real sellers.</span>
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-mid">
               LinkedIn, Google Voice, Gmail, WhatsApp and Telegram accounts. Each one is checked by our team, held for one buyer at a time, and confirmed in chat.
@@ -254,7 +254,7 @@ export default async function Landing() {
             <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-mid">
               {['Every listing reviewed', 'One buyer at a time', 'Private chat'].map((t) => (
                 <li key={t} className="flex items-center gap-2">
-                  <Check className="size-4 text-teal-600 dark:text-teal-300" /> {t}
+                  <Check className="size-4 text-state-ok" /> {t}
                 </li>
               ))}
             </ul>
@@ -347,7 +347,7 @@ export default async function Landing() {
       <section id="sellers" className="scroll-mt-16 pb-20">
         <div className={wrap}>
           <div className="relative overflow-hidden rounded-3xl border border-line bg-bg-card p-8 sm:p-10">
-            <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-teal-400/15 blur-3xl" />
+            <div className="pointer-events-none absolute -right-24 -top-24 size-80 rounded-full bg-state-ok/10 blur-3xl" />
             <div className="relative grid grid-cols-1 gap-10 lg:grid-cols-[1.2fr_1fr] lg:items-center">
               <div>
                 <p className={eyebrow}>For sellers</p>
@@ -362,7 +362,7 @@ export default async function Landing() {
               <ul className="space-y-3">
                 {sellerPerks.map((p) => (
                   <li key={p.title} className="flex items-center gap-3 rounded-xl border border-line bg-bg-base/70 px-4 py-3">
-                    <p.icon className="size-4 shrink-0 text-teal-600 dark:text-teal-300" />
+                    <p.icon className="size-4 shrink-0 text-state-ok" />
                     {/* Narrow phones: the note sits under the title instead of squeezing it. */}
                     <span className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <span className="text-sm font-medium text-ink-hi">{p.title}</span>
@@ -417,7 +417,7 @@ export default async function Landing() {
       {/* Call to action */}
       <section className="pb-20">
         <div className={wrap}>
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#2f5bea] via-[#3b6cf6] to-[#22a6b3] px-8 py-10 sm:px-12">
+          <div className="relative overflow-hidden rounded-3xl bg-primary px-8 py-10 sm:px-12">
             <div
               className="pointer-events-none absolute inset-y-0 right-0 w-1/2 opacity-40"
               style={{ backgroundImage: 'radial-gradient(rgb(255 255 255 / 0.35) 1px, transparent 1px)', backgroundSize: '14px 14px', maskImage: 'linear-gradient(to left, black, transparent)' }}
@@ -428,7 +428,7 @@ export default async function Landing() {
                 <p className="mt-2 text-white/80">Free to join. See live listings without an account.</p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Link href="/register" className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-[#1d3fbf] hover:bg-white/90">
+                <Link href="/register" className="rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-primary hover:bg-white/90">
                   Join free
                 </Link>
                 <a href="#listings" className="rounded-xl border border-white/50 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10">
