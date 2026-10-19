@@ -62,7 +62,8 @@ enum NotificationType {
   POST_EXPIRED      // to the former holder and the Client: countdown ran out
   POST_ACCEPTED     // to the Client: Admin accepted the post
   POST_REQUESTED    // to every Admin: a Client submitted one or more post requests
-  POST_DELETED      // to the Client: an Admin deleted their post request
+  POST_DELETED      // Client: an admin removed their account. Admin: a seller removed their own account.
+  POST_UPDATED      // to every Admin: a seller changed one of their accounts
   POST_PROGRESSING  // to every Admin: a Customer confirmed a link (5-minute hold)
   NEW_MESSAGE       // to a participant who is not looking at the chat
 }

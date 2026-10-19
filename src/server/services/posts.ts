@@ -472,6 +472,146 @@ export async function deletePostByAdmin(postId: string) {
   return { ok: true };
 }
 
+/** The seller deletes one of their own accounts. A deal in progress stays until it ends. */
+export async function deletePostByClient(client: UserActor, postId: string) {
+  const existing = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true, clientId: true, title: true, name: true, kind: true, status: true, image: true, detailImage: true },
+  });
+  if (!existing || existing.clientId !== client.id) throw notFound('Account');
+  if (existing.status === 'PROGRESSING') throw conflict('IN_PROGRESS', 'A buyer is holding this account. Try again when the deal ends.');
+
+  const out = new Outbox();
+  const carted = await prisma.$transaction(async (tx) => {
+    const inCarts = await tx.cartItem.findMany({ where: { postId }, select: { customerId: true } });
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      DELETE FROM "Post" WHERE id = ${postId} AND "clientId" = ${client.id} AND status <> 'PROGRESSING'
+      RETURNING id`;
+    if (rows.length === 0) throw conflict('IN_PROGRESS', 'A buyer is holding this account. Try again when the deal ends.');
+    const label = existing.name?.trim() || existing.title;
+    const kindLabel = ACCOUNT_KIND_LABEL[existing.kind];
+    const statusNote =
+      existing.status === 'REQUESTED'
+        ? 'It was still waiting for approval.'
+        : existing.status === 'COMPLETED'
+          ? 'It was already sold. The deal chat stays.'
+          : 'It was published.';
+    const admins = await tx.admin.findMany({ select: { id: true } });
+    for (const admin of admins) {
+      await notify(tx, out, { adminId: admin.id }, {
+        type: 'POST_DELETED',
+        title: `${client.name} deleted a ${kindLabel} account`,
+        body: `"${label}". ${statusNote}`,
+      });
+    }
+    return inCarts.map((c) => c.customerId);
+  });
+  for (const img of [existing.image, existing.detailImage] as (ImageInfo | null)[]) {
+    if (img?.key) await deleteStoredImage(img.key).catch(() => undefined);
+  }
+  out.push([rooms.admins, rooms.user(client.id), rooms.customers], 'post:deleted', { postId });
+  out.flush();
+  for (const customerId of carted) {
+    const out2 = new Outbox();
+    out2.push(rooms.user(customerId), 'cart:updated', await cartSnapshot(customerId));
+    out2.flush();
+  }
+  return { ok: true };
+}
+
+const FIELD_LABEL: Record<AccountKind, string> = {
+  LINKEDIN: 'Link',
+  GV: 'Phone',
+  GMAIL: 'Email',
+  WHATSAPP: 'Phone',
+  TELEGRAM: 'Username',
+};
+
+const imageKey = (img: unknown) => {
+  if (!img || typeof img !== 'object' || !('key' in img)) return null;
+  const key = (img as ImageInfo).key;
+  return typeof key === 'string' ? key : null;
+};
+const cents = (n: number | null | undefined) => (n == null ? null : Math.round(n * 100));
+const money = (n: number | null) => (n == null ? 'none' : `$${n.toFixed(2)}`);
+
+/** What a seller actually changed, in the order the admin reads it. Empty when the save is a no-op. */
+function accountChanges(
+  before: { title: string; name: string | null; connects: number; price: number | null; image: unknown; detailImage: unknown; kind: AccountKind },
+  data: { image?: ImageInfo | null; detailImage?: ImageInfo | null; connects?: number; price?: number; name?: string | null; title?: string },
+) {
+  const linkedIn = before.kind === 'LINKEDIN';
+  const notes: string[] = [];
+  if (data.title !== undefined && data.title !== before.title) notes.push(`${FIELD_LABEL[before.kind]} "${before.title}" → "${data.title}"`);
+  if (linkedIn && data.name !== undefined && (data.name ?? null) !== before.name) notes.push(`Name "${before.name ?? ''}" → "${data.name ?? ''}"`);
+  if (linkedIn && data.connects !== undefined && data.connects !== before.connects) notes.push(`Connects ${before.connects} → ${data.connects}`);
+  if (data.price !== undefined && cents(data.price) !== cents(before.price)) notes.push(`Price ${money(before.price)} → ${money(data.price)}`);
+  if (data.image !== undefined && imageKey(data.image) !== imageKey(before.image)) notes.push(data.image ? 'Photo updated' : 'Photo removed');
+  if (linkedIn && data.detailImage !== undefined && imageKey(data.detailImage) !== imageKey(before.detailImage)) {
+    notes.push(data.detailImage ? 'Detail image updated' : 'Detail image removed');
+  }
+  return notes;
+}
+
+/** The seller edits one of their own accounts. A deal in progress stays as it is until it ends. */
+export async function updatePostByClient(
+  client: UserActor,
+  postId: string,
+  data: { image?: ImageInfo | null; detailImage?: ImageInfo | null; connects?: number; price?: number; name?: string | null; title?: string },
+) {
+  const before = await prisma.post.findUnique({ where: { id: postId } });
+  if (!before || before.clientId !== client.id) throw notFound('Account');
+  if (before.status === 'PROGRESSING') throw conflict('IN_PROGRESS', 'A buyer is holding this account. Edit it when the deal ends.');
+
+  const linkedIn = before.kind === 'LINKEDIN';
+  const notes = accountChanges(before, data);
+  if (notes.length === 0) {
+    const post = await loadPost(prisma, postId);
+    return { post: toPostDTO(post, { staff: true }), serverNow: await dbNow(), changed: false };
+  }
+
+  const out = new Outbox();
+  const result = await prisma.$transaction(async (tx) => {
+    const post = await tx.post.update({
+      where: { id: postId },
+      data: {
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.price !== undefined ? { price: data.price } : {}),
+        ...(data.image !== undefined ? { image: data.image ?? Prisma.DbNull } : {}),
+        ...(linkedIn && data.name !== undefined ? { name: data.name } : {}),
+        ...(linkedIn && data.connects !== undefined ? { connects: data.connects } : {}),
+        ...(linkedIn && data.detailImage !== undefined ? { detailImage: data.detailImage ?? Prisma.DbNull } : {}),
+      },
+      include: postInclude,
+    });
+    const label = post.name?.trim() || post.title;
+    const kindLabel = ACCOUNT_KIND_LABEL[post.kind];
+    const admins = await tx.admin.findMany({ select: { id: true } });
+    for (const admin of admins) {
+      await notify(tx, out, { adminId: admin.id }, {
+        type: 'POST_UPDATED',
+        title: `${client.name} updated a ${kindLabel} account`,
+        body: `"${label}". ${notes.join('. ')}.`,
+        postId: post.id,
+      });
+    }
+    const serverNow = await dbNow(tx);
+    pushPost(out, post, serverNow);
+    return { post, serverNow };
+  });
+
+  const oldImage = before.image as ImageInfo | null;
+  if (data.image !== undefined && oldImage?.key && oldImage.key !== data.image?.key) {
+    await deleteStoredImage(oldImage.key).catch(() => undefined);
+  }
+  const oldDetail = before.detailImage as ImageInfo | null;
+  if (linkedIn && data.detailImage !== undefined && oldDetail?.key && oldDetail.key !== data.detailImage?.key) {
+    await deleteStoredImage(oldDetail.key).catch(() => undefined);
+  }
+  out.flush();
+  return { post: toPostDTO(result.post, { staff: true }), serverNow: result.serverNow, changed: true };
+}
+
 export async function listAdminPosts(status?: PostStatus, kind?: AccountKind) {
   await expireDue();
   const posts = await prisma.post.findMany({

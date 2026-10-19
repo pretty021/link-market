@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { List, Table2 } from 'lucide-react';
+import { AccountOwnerActions } from '@/components/edit-account';
 import { Countdown, PostImage, PostTitle, StatusBadge } from '@/components/post-bits';
 import { Badge } from '@/components/ui/primitives';
 import { DEFAULT_ACCOUNT_IMAGE, coverClass, coverSrc } from '@/lib/account-kinds';
@@ -60,11 +61,16 @@ export function AccountTable({
   showConnects,
   flash,
   onExpired,
+  onDeleted,
+  onUpdated,
 }: {
   posts: Post[];
   showConnects: boolean;
   flash: Set<string>;
   onExpired: () => void;
+  /** When set, the seller can edit and delete their own account. */
+  onDeleted?: (id: string) => void;
+  onUpdated?: (post: Post) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -77,6 +83,7 @@ export function AccountTable({
             <th className="px-4 py-3 font-medium">Updated</th>
             <th className="px-4 py-3 font-medium">Holder</th>
             <th className="px-4 py-3 text-right font-medium">Price</th>
+            {onDeleted && <th className="px-4 py-3 text-right font-medium">Actions</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-line/40">
@@ -126,6 +133,15 @@ export function AccountTable({
                   )}
                 </td>
                 <td data-label="Price" className="px-4 py-3 text-right font-semibold tabular-nums">{formatPrice(post.price)}</td>
+                {onDeleted && (
+                  <td className="rt-actions px-4 py-3 text-right">
+                    {post.status === 'PROGRESSING' ? (
+                      <span className="text-ink-lo">-</span>
+                    ) : (
+                      <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} compact />
+                    )}
+                  </td>
+                )}
               </tr>
             );
           })}

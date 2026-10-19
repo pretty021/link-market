@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge, Card, CardHeader, Empty, Field, Input, Spinner } from '@/components/ui/primitives';
 import { AccountTable, AccountViewToggle, useAccountView } from '@/components/account-view';
+import { AccountOwnerActions } from '@/components/edit-account';
 import { ACCOUNT_KIND_LABEL, coverClass, coverSrc, type AccountKind } from '@/lib/account-kinds';
 import { api, ApiError } from '@/lib/client/api';
 import type { Post } from '@/lib/client/types';
@@ -82,6 +83,10 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
   useSocketEvent<{ posts: Post[] }>('post:requested', ({ posts: created }) => created.forEach(upsert));
   useSocketEvent<{ postId: string }>('post:deleted', ({ postId }) => setPosts((prev) => prev?.filter((p) => p.id !== postId) ?? prev));
 
+  function dropPost(id: string) {
+    setPosts((prev) => prev?.filter((p) => p.id !== id) ?? prev);
+  }
+
   if (!allowed) return null;
 
   return (
@@ -108,14 +113,14 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
             {view.shown!.length === 0 ? (
               <Empty title="No accounts match" hint="Try other filters." />
             ) : layout === 'table' ? (
-              <AccountTable posts={view.shown!} showConnects={false} flash={flash} onExpired={() => void loadPosts()} />
+              <AccountTable posts={view.shown!} showConnects={false} flash={flash} onExpired={() => void loadPosts()} onDeleted={dropPost} onUpdated={upsert} />
             ) : (
               <ul className={cn('grid grid-cols-1 bg-bg-base/70 p-3 sm:p-4', usesAccountCard(kind) ? 'gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3' : 'gap-3 sm:grid-cols-2 lg:grid-cols-4')}>
                 {view.shown!.map((p) =>
                   usesAccountCard(kind) ? (
-                    <AccountCardItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
+                    <AccountCardItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} onDeleted={dropPost} onUpdated={upsert} />
                   ) : (
-                    <AccountItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
+                    <AccountItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} onDeleted={dropPost} onUpdated={upsert} />
                   ),
                 )}
               </ul>
@@ -129,7 +134,7 @@ export function SellerKindPage({ kind }: { kind: AccountKind }) {
 }
 
 /** GV / Gmail: the same account card as the seller's LinkedIn links. */
-function AccountCardItem({ post, flash, onExpired }: { post: Post; flash: boolean; onExpired: () => void }) {
+function AccountCardItem({ post, flash, onExpired, onDeleted, onUpdated }: { post: Post; flash: boolean; onExpired: () => void; onDeleted: (id: string) => void; onUpdated: (post: Post) => void }) {
   const done = post.status === 'COMPLETED';
   return (
     <li>
@@ -161,14 +166,16 @@ function AccountCardItem({ post, flash, onExpired }: { post: Post; flash: boolea
         action={
           post.status === 'PROGRESSING' ? (
             <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
-          ) : undefined
+          ) : (
+            <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} />
+          )
         }
       />
     </li>
   );
 }
 
-function AccountItem({ post, flash, onExpired }: { post: Post; flash: boolean; onExpired: () => void }) {
+function AccountItem({ post, flash, onExpired, onDeleted, onUpdated }: { post: Post; flash: boolean; onExpired: () => void; onDeleted: (id: string) => void; onUpdated: (post: Post) => void }) {
   const when = new Date(post.updatedAt);
   return (
     <li
@@ -200,9 +207,13 @@ function AccountItem({ post, flash, onExpired }: { post: Post; flash: boolean; o
         <div className="min-w-0 flex-1">
           <PostTitle post={post} className="min-w-0" headingClassName="text-sm font-semibold" />
           <p className="mt-1 text-sm font-bold tabular-nums">{formatPrice(post.price)}</p>
-          {post.status === 'PROGRESSING' && (
+          {post.status === 'PROGRESSING' ? (
             <div className="mt-1">
               <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
+            </div>
+          ) : (
+            <div className="mt-2">
+              <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} compact />
             </div>
           )}
         </div>

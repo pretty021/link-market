@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Eye, FilePlus2, LifeBuoy, Link2, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import { AccountTable, AccountViewToggle, useAccountView } from '@/components/account-view';
+import { AccountOwnerActions } from '@/components/edit-account';
 import { ListToolbar, STAFF_STATUS_OPTIONS, useListControls } from '@/components/list-toolbar';
 import { Chip, LinkedInCard, StatusDot } from '@/components/linkedin-card';
 import { Countdown, StatusBadge } from '@/components/post-bits';
@@ -103,6 +104,10 @@ export default function ClientDashboard() {
   useSocketEvent('conversation:updated', () => void loadChats());
   useSocketEvent('notification:new', () => void loadChats());
 
+  function dropPost(id: string) {
+    setPosts((prev) => prev?.filter((p) => p.id !== id) ?? prev);
+  }
+
   async function openSupport() {
     const r = await api<{ conversationId: string }>('/api/conversations/support', { method: 'POST' });
     router.push(`/chat?c=${r.conversationId}`);
@@ -138,11 +143,11 @@ export default function ClientDashboard() {
               {view.shown!.length === 0 ? (
                 <Empty title="No links match" hint="Try other filters." />
               ) : layout === 'table' ? (
-                <AccountTable posts={view.shown!} showConnects flash={flash} onExpired={() => void loadPosts()} />
+                <AccountTable posts={view.shown!} showConnects flash={flash} onExpired={() => void loadPosts()} onDeleted={dropPost} onUpdated={upsert} />
               ) : (
               <ul className="grid grid-cols-1 gap-3 bg-bg-base/70 p-3 sm:grid-cols-2 sm:gap-4 sm:p-4 xl:grid-cols-3">
                   {view.shown!.map((p) => (
-                    <LinkItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} />
+                    <LinkItem key={p.id} post={p} flash={flash.has(p.id)} onExpired={() => void loadPosts()} onDeleted={dropPost} onUpdated={upsert} />
                   ))}
                 </ul>
               )}
@@ -203,7 +208,7 @@ export default function ClientDashboard() {
   );
 }
 
-function LinkItem({ post, flash, onExpired }: { post: Post; flash: boolean; onExpired: () => void }) {
+function LinkItem({ post, flash, onExpired, onDeleted, onUpdated }: { post: Post; flash: boolean; onExpired: () => void; onDeleted: (id: string) => void; onUpdated: (post: Post) => void }) {
   const done = post.status === 'COMPLETED';
   return (
     <li>
@@ -240,7 +245,9 @@ function LinkItem({ post, flash, onExpired }: { post: Post; flash: boolean; onEx
         action={
           post.status === 'PROGRESSING' ? (
             <Countdown expiresAt={post.progressingExpiresAt} paused={!!post.progressingPausedAt} onDone={onExpired} />
-          ) : undefined
+          ) : (
+            <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} />
+          )
         }
       />
     </li>

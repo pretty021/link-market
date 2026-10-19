@@ -5,7 +5,9 @@ import {
   confirmPost,
   createPostByAdmin,
   deletePostByAdmin,
+  deletePostByClient,
   deleteRequestedPost,
+  updatePostByClient,
   getPostForCustomer,
   listClientPosts,
   listFeed,
@@ -197,6 +199,67 @@ describe('admin edits and deletes accounts', () => {
     await confirmPost(customer, post.id);
     await expect(deletePostByAdmin(post.id)).rejects.toMatchObject({ code: 'IN_PROGRESS' });
     await expect(updatePostByAdmin(post.id, adminPostUpdateSchema.parse({ price: 1 }))).rejects.toMatchObject({ code: 'IN_PROGRESS' });
+  });
+});
+
+describe('client deletes their own accounts', () => {
+  it('deletes a published account, clears carts, and tells admins', async () => {
+    const admin = await makeAdmin();
+    const client = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id, 'Mine');
+    await addToCartDirect(customer.id, post.id);
+    await deletePostByClient(client, post.id);
+    expect(await prisma.post.count({ where: { id: post.id } })).toBe(0);
+    expect(await prisma.cartItem.count({ where: { postId: post.id } })).toBe(0);
+    const note = await prisma.notification.findFirstOrThrow({ where: { adminId: admin.id, type: 'POST_DELETED' } });
+    expect(note.title).toBe(`${client.name} deleted a LinkedIn account`);
+    expect(note.body).toContain('Mine');
+    expect(note.body).toContain('published');
+    expect(await prisma.notification.count({ where: { userId: client.id, type: 'POST_DELETED' } })).toBe(0);
+  });
+
+  it('refuses another seller and a deal in progress', async () => {
+    const client = await makeClient();
+    const other = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id);
+    await expect(deletePostByClient(other, post.id)).rejects.toMatchObject({ status: 404 });
+    await addToCartDirect(customer.id, post.id);
+    await confirmPost(customer, post.id);
+    await expect(deletePostByClient(client, post.id)).rejects.toMatchObject({ code: 'IN_PROGRESS' });
+    expect(await prisma.post.count({ where: { id: post.id } })).toBe(1);
+  });
+});
+
+describe('client edits their own accounts', () => {
+  it('saves the change and tells admins what moved', async () => {
+    const admin = await makeAdmin();
+    const client = await makeClient();
+    const post = await makePublishedPost(client.id, 'Old title');
+    const { post: saved, changed } = await updatePostByClient(client, post.id, { title: 'New title', price: 40 });
+    expect(changed).toBe(true);
+    expect(saved).toMatchObject({ title: 'New title', price: 40 });
+    const note = await prisma.notification.findFirstOrThrow({ where: { adminId: admin.id, type: 'POST_UPDATED' } });
+    expect(note.title).toBe(`${client.name} updated a LinkedIn account`);
+    expect(note.body).toContain('Old title');
+    expect(note.body).toContain('New title');
+    expect(note.body).toContain('$40.00');
+  });
+
+  it('does not notify when nothing changed, and refuses a deal in progress or another seller', async () => {
+    const admin = await makeAdmin();
+    const client = await makeClient();
+    const other = await makeClient();
+    const customer = await makeCustomer();
+    const post = await makePublishedPost(client.id, 'Same');
+    const same = await updatePostByClient(client, post.id, { title: 'Same', price: 35.01 });
+    expect(same.changed).toBe(false);
+    expect(await prisma.notification.count({ where: { adminId: admin.id, type: 'POST_UPDATED' } })).toBe(0);
+    await expect(updatePostByClient(other, post.id, { title: 'Nope', price: 1 })).rejects.toMatchObject({ status: 404 });
+    await addToCartDirect(customer.id, post.id);
+    await confirmPost(customer, post.id);
+    await expect(updatePostByClient(client, post.id, { title: 'Later', price: 1 })).rejects.toMatchObject({ code: 'IN_PROGRESS' });
   });
 });
 

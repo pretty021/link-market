@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { Bell, CheckCheck } from 'lucide-react';
+import { ACCOUNT_KIND_LABEL, kindHref, type AccountKind } from '@/lib/account-kinds';
 import { api } from '@/lib/client/api';
 import type { Notification } from '@/lib/client/types';
 import { cn, timeAgo } from '@/lib/utils';
@@ -11,9 +12,14 @@ import { useOnReconnect, useSocketEvent } from './providers/realtime';
 import { useMe } from './providers/session';
 import { useToast } from './providers/toast';
 
-function targetFor(n: Notification, home: string) {
+function targetFor(n: Notification, home: string, isAdmin: boolean) {
   if (n.conversationId) return `/chat?c=${n.conversationId}`;
   if (n.type === 'POST_PROGRESSING') return '/admin/posts';
+  // Seller edits and deletes name the catalog: "… updated a GV account".
+  if (isAdmin && (n.type === 'POST_DELETED' || n.type === 'POST_UPDATED')) {
+    const kind = (Object.keys(ACCOUNT_KIND_LABEL) as AccountKind[]).find((k) => n.title.endsWith(`a ${ACCOUNT_KIND_LABEL[k]} account`));
+    if (kind) return kindHref(kind, 'admin');
+  }
   return home;
 }
 
@@ -21,7 +27,8 @@ export function NotificationBell() {
   const router = useRouter();
   const toast = useToast();
   const { me } = useMe();
-  const home = me.kind === 'admin' ? '/admin' : me.role === 'CLIENT' ? '/client' : '/cart';
+  const isAdmin = me.kind === 'admin';
+  const home = isAdmin ? '/admin' : me.role === 'CLIENT' ? '/client' : '/cart';
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<Notification[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -51,7 +58,7 @@ export function NotificationBell() {
       setCount((c) => Math.max(0, c - 1));
       await api(`/api/notifications/${n.id}/read`, { method: 'POST' }).catch(() => undefined);
     }
-    router.push(targetFor(n, home));
+    router.push(targetFor(n, home, isAdmin));
   }
 
   useSocketEvent<{ conversationId: string }>('notifications:read', ({ conversationId }) => {
