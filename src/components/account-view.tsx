@@ -138,7 +138,7 @@ export function AccountTable({
                     {post.status === 'PROGRESSING' ? (
                       <span className="text-ink-lo">-</span>
                     ) : (
-                      <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} compact />
+                      <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} />
                     )}
                   </td>
                 )}

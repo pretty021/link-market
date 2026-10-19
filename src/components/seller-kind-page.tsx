@@ -213,7 +213,7 @@ function AccountItem({ post, flash, onExpired, onDeleted, onUpdated }: { post: P
             </div>
           ) : (
             <div className="mt-2">
-              <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} compact />
+              <AccountOwnerActions post={post} onUpdated={onUpdated} onDeleted={onDeleted} />
             </div>
           )}
         </div>

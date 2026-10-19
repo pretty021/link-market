@@ -25,46 +25,33 @@ export function AccountOwnerActions({
   post,
   onUpdated,
   onDeleted,
-  compact = false,
 }: {
   post: Post;
   onUpdated?: (post: Post) => void;
   onDeleted: (id: string) => void;
-  compact?: boolean;
 }) {
   if (post.status === 'PROGRESSING') return null;
   return (
-    <div className="flex items-center justify-end gap-1.5">
-      {onUpdated && <EditAccountButton post={post} onUpdated={onUpdated} compact={compact} />}
-      <DeleteAccountButton post={post} onDeleted={onDeleted} compact={compact} />
+    <div className="flex items-center justify-end gap-0.5">
+      {onUpdated && <EditAccountButton post={post} onUpdated={onUpdated} />}
+      <DeleteAccountButton post={post} onDeleted={onDeleted} />
     </div>
   );
 }
 
-function EditAccountButton({
-  post,
-  onUpdated,
-  compact,
-}: {
-  post: Post;
-  onUpdated: (post: Post) => void;
-  compact: boolean;
-}) {
+function EditAccountButton({ post, onUpdated }: { post: Post; onUpdated: (post: Post) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button
+      <button
         type="button"
-        size={compact ? 'icon' : 'sm'}
-        variant="outline"
-        className={compact ? 'size-8' : undefined}
         onClick={() => setOpen(true)}
         aria-label="Edit account"
         title="Edit"
+        className="inline-flex size-7 items-center justify-center text-ink-mid transition-colors hover:text-ink-hi"
       >
-        <Pencil />
-        {!compact && 'Edit'}
-      </Button>
+        <Pencil className="size-4" />
+      </button>
       <EditAccountDialog
         post={open ? post : null}
         onClose={() => setOpen(false)}
